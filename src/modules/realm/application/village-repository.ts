@@ -15,15 +15,8 @@ export interface VillageRepository {
   /**
    * Enregistre de nouveaux événements à la suite des précédents.
    * expectedVersion est la version lue au chargement : si d'autres événements
-   * ont été enregistrés entre-temps, l'enregistrement est refusé.
+   * ont été enregistrés entre-temps, l'enregistrement est refusé par une
+   * ConcurrencyError, l'erreur du journal d'événements de la plateforme.
    */
   save(userId: string, expectedVersion: number, events: VillageEvent[]): Promise<void>
-}
-
-/** Erreur levée lorsque la version attendue ne correspond plus à la version enregistrée. */
-export class VersionConflictError extends Error {
-  constructor(userId: string, expected: number, actual: number) {
-    super(`Conflit de version pour ${userId} : attendue ${expected}, enregistrée ${actual}`)
-    this.name = 'VersionConflictError'
-  }
 }

@@ -1,3 +1,4 @@
+import { withOptimisticRetry } from '@/platform/event-store/retry'
 import {
   type DomainError,
   decide,
@@ -15,26 +16,30 @@ export type CommandResult = { ok: true; view: VillageView } | { ok: false; error
  * Il reçoit ses dépendances en paramètre : le port de persistance et l'horloge.
  */
 export function createVillageService(repo: VillageRepository, clock = () => Date.now()) {
-  /** Traite une commande : charger, décider, enregistrer, puis renvoyer la vue. */
-  async function execute(userId: string, command: VillageCommand): Promise<CommandResult> {
-    // 1. Charger l'état courant et sa version.
-    const { state, version } = await repo.load(userId)
+  /**
+   * Traite une commande : charger, décider, enregistrer, puis renvoyer la vue.
+   * En cas de conflit d'écriture, l'ensemble du traitement est rejoué sur l'état à jour.
+   */
+  function execute(userId: string, command: VillageCommand): Promise<CommandResult> {
+    return withOptimisticRetry(async () => {
+      // 1. Charger l'état courant et sa version.
+      const { state, version } = await repo.load(userId)
 
-    // 2. Lire l'horloge une seule fois : la décision et la vue portent sur le même instant.
-    const now = clock()
+      // 2. Lire l'horloge une seule fois : la décision et la vue portent sur le même instant.
+      const now = clock()
 
-    // 3. Demander la décision au domaine. Un refus est renvoyé tel quel.
-    const decision = decide(state, command, now)
-    if (!decision.ok) return decision
+      // 3. Demander la décision au domaine. Un refus est renvoyé tel quel.
+      const decision = decide(state, command, now)
+      if (!decision.ok) return decision
 
-    // 4. Enregistrer les événements produits, à la suite de la version lue.
-    //    DETTE TECHNIQUE DT-003 (docs/qualite/dette-technique.md) : un conflit de version
-    //    lève une exception non traitée ; il sera rejoué au TD3.
-    await repo.save(userId, version, decision.events)
+      // 4. Enregistrer les événements produits, à la suite de la version lue.
+      //    Un conflit lève une ConcurrencyError, et provoque un nouvel essai.
+      await repo.save(userId, version, decision.events)
 
-    // 5. Renvoyer la vue de l'état obtenu.
-    const updated = await repo.load(userId)
-    return { ok: true, view: toView(updated.state, now) }
+      // 5. Renvoyer la vue de l'état obtenu.
+      const updated = await repo.load(userId)
+      return { ok: true, view: toView(updated.state, now) }
+    })
   }
 
   /** Renvoie la vue du village d'un joueur, ou null s'il n'en a pas encore fondé. */

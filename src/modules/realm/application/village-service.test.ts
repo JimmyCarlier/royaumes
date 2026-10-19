@@ -1,68 +1,88 @@
-import { describe, expect, it } from 'vitest'
-import { createInMemoryVillageRepository } from '../infrastructure/in-memory-village-repository'
-import { VersionConflictError } from './village-repository'
+import { beforeEach, describe, expect, it } from 'vitest'
+import { createTestDatabase } from '@/platform/db/client'
+import { ConcurrencyError, createEventStore } from '@/platform/event-store/event-store'
+import type { VillageEvent } from '../domain/village'
+import { createEventStoreVillageRepository } from '../infrastructure/event-store-village-repository'
+import type { VillageRepository } from './village-repository'
 import { createVillageService } from './village-service'
 
-// Horloge contrôlée par le test : l'instant courant est une simple variable.
-function setup() {
-  let now = Date.UTC(2026, 0, 1)
-  const repo = createInMemoryVillageRepository()
-  const service = createVillageService(repo, () => now)
-  const advance = (minutes: number) => {
-    now += minutes * 60_000
-  }
-  return { repo, service, advance }
+// Chaque test dispose d'une base vidée, d'un dépôt et d'une horloge contrôlée.
+let repo: VillageRepository
+let now: number
+const advance = (minutes: number) => {
+  now += minutes * 60_000
 }
+const service = () => createVillageService(repo, () => now)
+
+beforeEach(async () => {
+  repo = createEventStoreVillageRepository(createEventStore(await createTestDatabase()))
+  now = Date.UTC(2026, 0, 1)
+})
 
 describe('Service du Village', () => {
   it("n'a aucune vue tant que le village n'est pas fondé", async () => {
-    const { service } = setup()
-    expect(await service.getView('alice')).toBeNull()
+    expect(await service().getView('alice')).toBeNull()
   })
 
   it('fonde un village et renvoie sa vue', async () => {
-    const { service } = setup()
-    const result = await service.execute('alice', { type: 'FoundVillage', name: 'Valombre' })
+    const result = await service().execute('alice', { type: 'FoundVillage', name: 'Valombre' })
 
     expect(result.ok).toBe(true)
-    expect((await service.getView('alice'))?.name).toBe('Valombre')
+    expect((await service().getView('alice'))?.name).toBe('Valombre')
   })
 
   it('enregistre les événements et fait évoluer la vue avec le temps', async () => {
-    const { service, advance } = setup()
-    await service.execute('alice', { type: 'FoundVillage', name: 'Valombre' })
+    await service().execute('alice', { type: 'FoundVillage', name: 'Valombre' })
     advance(5)
-    await service.execute('alice', { type: 'UpgradeBuilding', building: 'mine' })
+    await service().execute('alice', { type: 'UpgradeBuilding', building: 'mine' })
     advance(10)
 
-    const view = await service.getView('alice')
+    const view = await service().getView('alice')
     expect(view?.levels.mine).toBe(1)
     expect(view?.stock).toEqual({ wood: 170, stone: 80, gold: 20 })
   })
 
   it("renvoie l'erreur métier sans rien enregistrer", async () => {
-    const { repo, service } = setup()
-    await service.execute('alice', { type: 'FoundVillage', name: 'Valombre' })
-    const result = await service.execute('alice', { type: 'FoundVillage', name: 'Autre' })
+    await service().execute('alice', { type: 'FoundVillage', name: 'Valombre' })
+    const result = await service().execute('alice', { type: 'FoundVillage', name: 'Autre' })
 
     expect(result).toEqual({ ok: false, error: { code: 'ALREADY_FOUNDED' } })
     expect((await repo.load('alice')).version).toBe(1)
   })
 
   it('isole les villages des différents joueurs', async () => {
-    const { service } = setup()
-    await service.execute('alice', { type: 'FoundVillage', name: 'Valombre' })
-    expect(await service.getView('bob')).toBeNull()
+    await service().execute('alice', { type: 'FoundVillage', name: 'Valombre' })
+    expect(await service().getView('bob')).toBeNull()
+  })
+
+  it("rejoue une commande concurrente et n'accepte qu'une amélioration payée une fois", async () => {
+    // Le scénario de la sous-partie 1.3 : 150 bois, deux améliorations de la scierie à 98.
+    await service().execute('alice', { type: 'FoundVillage', name: 'Valombre' })
+    advance(5)
+    const upgrade = { type: 'UpgradeBuilding', building: 'sawmill' } as const
+
+    const results = await Promise.all([
+      service().execute('alice', upgrade),
+      service().execute('alice', upgrade),
+    ])
+
+    // L'une est acceptée. L'autre est rejouée sur l'état à jour : la scierie est déjà
+    // au niveau 2, son amélioration suivante coûte 167 bois et 83 pierres, et il ne reste
+    // que 52 bois et 31 pierres. Elle est donc refusée, et le bois n'est dépensé qu'une fois.
+    expect(results.map((r) => r.ok).sort()).toEqual([false, true])
+    expect(results.find((r) => !r.ok)).toEqual({
+      ok: false,
+      error: { code: 'INSUFFICIENT_RESOURCES', missing: { wood: 115, stone: 52 } },
+    })
+    expect((await service().getView('alice'))?.levels.sawmill).toBe(2)
   })
 })
 
-describe('Adaptateur en mémoire', () => {
+describe('Adaptateur fondé sur le journal', () => {
   it('refuse un enregistrement fondé sur une version périmée', async () => {
-    const repo = createInMemoryVillageRepository()
-    const founded = { type: 'VillageFounded', data: { name: 'Valombre', at: 0 } } as const
+    const founded: VillageEvent = { type: 'VillageFounded', data: { name: 'Valombre', at: 0 } }
     await repo.save('alice', 0, [founded])
 
-    // Un second enregistrement qui croit encore le village vide est refusé.
-    await expect(repo.save('alice', 0, [founded])).rejects.toBeInstanceOf(VersionConflictError)
+    await expect(repo.save('alice', 0, [founded])).rejects.toBeInstanceOf(ConcurrencyError)
   })
 })
