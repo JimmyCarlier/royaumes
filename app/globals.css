@@ -51,3 +51,25 @@ button {
   cursor: pointer;
 }
 button:disabled { opacity: 0.45; cursor: not-allowed; }
+
+/* Entités du jeu (couche de thème). */
+.entity { display: inline-flex; gap: 6px; align-items: center; }
+.sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+
+/* Formulaires. */
+form { display: grid; gap: 10px; max-width: 340px; }
+input {
+  font: inherit;
+  padding: 8px 10px;
+  border-radius: 8px;
+  border: 1px solid var(--muted);
+  background: transparent;
+  color: inherit;
+}
+
+/* Écran du Village. */
+.stock { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+.stock div { font-size: 1.3rem; font-variant-numeric: tabular-nums; }
+.stock small { display: block; font-size: 0.8rem; color: var(--muted); }
+.buildings { display: grid; gap: 12px; }
+.building { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; }
