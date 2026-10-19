@@ -1,14 +1,18 @@
+import { eq } from 'drizzle-orm'
 import { beforeEach, describe, expect, it } from 'vitest'
-import { createTestDatabase } from '../db/client'
+import { createTestDatabase, type Db } from '../db/client'
 import { createBetterAuth } from './better-auth'
 import type { AuthPort } from './port'
+import { account, user } from './schema'
 
 // Adresse de base des routes d'authentification, conforme à l'adresse locale par défaut.
 const AUTH = 'http://localhost:3000/api/auth'
 
+let db: Db
 let auth: AuthPort
 beforeEach(async () => {
-  auth = createBetterAuth(await createTestDatabase())
+  db = await createTestDatabase()
+  auth = createBetterAuth(db)
 })
 
 /** Envoie une requête JSON à une route d'authentification. */
@@ -60,5 +64,39 @@ describe('Adaptateur Better Auth', () => {
 
     expect(res.status).toBe(200)
     expect((await auth.getUser(sessionCookie(res)))?.name).toBe('Alice')
+  })
+})
+
+describe('Revue de sécurité', () => {
+  it("ne conserve qu'une empreinte du mot de passe", async () => {
+    await post('/sign-up/email', alice)
+    const [row] = await db
+      .select({ password: account.password })
+      .from(account)
+      .innerJoin(user, eq(account.userId, user.id))
+      .where(eq(user.email, alice.email))
+
+    expect(row.password).toBeTruthy()
+    expect(row.password).not.toContain(alice.password)
+  })
+
+  it('pose un cookie de session inaccessible au JavaScript de la page', async () => {
+    const res = await post('/sign-up/email', alice)
+    const cookie = res.headers.get('set-cookie') ?? ''
+
+    expect(cookie).toContain('HttpOnly')
+    expect(cookie).toContain('SameSite=Lax')
+  })
+
+  it("répond de la même manière que l'adresse existe ou non, à la connexion", async () => {
+    await post('/sign-up/email', alice)
+    const known = await post('/sign-in/email', { email: alice.email, password: 'mauvais-mot' })
+    const unknown = await post('/sign-in/email', {
+      email: 'inconnu@example.com',
+      password: 'x-mot-de-passe',
+    })
+
+    expect(known.status).toBe(unknown.status)
+    expect(await known.json()).toEqual(await unknown.json())
   })
 })
