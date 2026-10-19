@@ -1,6 +1,6 @@
 # Revue de sécurité du parcours d'authentification
 
-- Date : AAAA-MM-JJ
+- Date : 2026-10-19
 - Périmètre : inscription, connexion, déconnexion, sessions, accès à l'API et aux pages du jeu.
 - Références : OWASP Top 10, OWASP ASVS.
 
