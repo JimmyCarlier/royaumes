@@ -1,3 +1,5 @@
+import { createBetterAuth } from '@/platform/auth/better-auth'
+import type { AuthPort } from '@/platform/auth/port'
 import { createDatabase } from '@/platform/db/client'
 import { createEventStore } from '@/platform/event-store/event-store'
 import { type Api, createApi } from './create-api'
@@ -5,6 +7,8 @@ import { type Api, createApi } from './create-api'
 /** Ce que l'application expose à Next.js. */
 interface Server {
   api: Api
+  /** Authentification, utilisée aussi par les pages rendues sur le serveur. */
+  auth: AuthPort
   /** Résolue lorsque la base de données est prête. */
   ready: Promise<void>
 }
@@ -25,10 +29,11 @@ const globalForServer = globalThis as unknown as { royaumes?: Server }
  */
 export function getServer(): Server {
   if (!globalForServer.royaumes) {
-    // La plateforme : la base de données, puis le journal d'événements qui l'utilise.
+    // La plateforme : la base de données, puis les briques qui l'utilisent.
     const { db, ready } = createDatabase()
     const store = createEventStore(db)
-    globalForServer.royaumes = { api: createApi({ store, ready }), ready }
+    const auth = createBetterAuth(db)
+    globalForServer.royaumes = { api: createApi({ auth, store, ready }), auth, ready }
   }
   return globalForServer.royaumes
 }

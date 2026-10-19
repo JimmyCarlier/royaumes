@@ -3,8 +3,8 @@ import { createTestApi } from './testing'
 
 describe('API du module Village', () => {
   it("renvoie une vue nulle tant qu'aucun village n'est fondé", async () => {
-    const { api } = await createTestApi()
-    const res = await api.request('/api/realm/village')
+    const { get } = await createTestApi()
+    const res = await get('/api/realm/village')
 
     expect(res.status).toBe(200)
     expect(await res.json()).toEqual({ view: null })
@@ -50,5 +50,38 @@ describe('API du module Village', () => {
     const later = await post('/api/realm/village/upgrade', { building: 'mine' })
     expect(later.status).toBe(200)
     expect((await later.json()).view.levels.mine).toBe(1)
+  })
+})
+
+describe("Contrôle d'accès à l'API du Village", () => {
+  it('refuse une lecture anonyme (401)', async () => {
+    const { get } = await createTestApi()
+    const res = await get('/api/realm/village', null)
+
+    expect(res.status).toBe(401)
+    expect((await res.json()).error.code).toBe('UNAUTHENTICATED')
+  })
+
+  it('refuse une commande anonyme, sans rien enregistrer', async () => {
+    const { get, post } = await createTestApi()
+    const res = await post('/api/realm/village', { name: 'Valombre' }, null)
+
+    expect(res.status).toBe(401)
+    // Aucun village n'a été fondé, pour aucun joueur.
+    expect(await (await get('/api/realm/village')).json()).toEqual({ view: null })
+  })
+
+  it('isole les villages des joueurs', async () => {
+    const { get, post } = await createTestApi()
+    await post('/api/realm/village', { name: 'Valombre' }, 'alice')
+    await post('/api/realm/village', { name: 'Clairval' }, 'bob')
+
+    expect((await (await get('/api/realm/village', 'alice')).json()).view.name).toBe('Valombre')
+    expect((await (await get('/api/realm/village', 'bob')).json()).view.name).toBe('Clairval')
+  })
+
+  it('laisse la route de santé accessible sans connexion', async () => {
+    const { get } = await createTestApi()
+    expect((await get('/api/system/health', null)).status).toBe(200)
   })
 })

@@ -1,12 +1,15 @@
 import { Hono } from 'hono'
 import { createRealmModule } from '@/modules/realm'
 import { createSystemModule } from '@/modules/system'
+import type { AuthPort } from '@/platform/auth/port'
 import type { EventStore } from '@/platform/event-store/event-store'
-import { demoUser } from '@/platform/http/demo-user'
+import { requireUser } from '@/platform/http/require-user'
 import type { AppEnv } from '@/platform/http/types'
 
 /** Dépendances fournies à l'application par son point d'entrée. */
 export interface ApiDeps {
+  /** Authentification : Better Auth en fonctionnement réel, un adaptateur simplifié en test. */
+  auth: AuthPort
   /** Journal d'événements, transmis aux modules qui l'utilisent. */
   store: EventStore
   /** Attendue avant chaque requête : résolue lorsque la base est prête (migrations). */
@@ -20,7 +23,7 @@ export interface ApiDeps {
  * la plateforme technique et l'ensemble des modules.
  * Ajouter un module consiste à l'instancier ici, puis à monter son API.
  */
-export function createApi({ store, ready, clock }: ApiDeps) {
+export function createApi({ auth, store, ready, clock }: ApiDeps) {
   // 1. Instanciation des modules, avec les dépendances fournies par la plateforme.
   const system = createSystemModule()
   const realm = createRealmModule({ store, clock })
@@ -45,11 +48,15 @@ export function createApi({ store, ready, clock }: ApiDeps) {
   // Une adresse inconnue produit elle aussi une réponse JSON, et non une page HTML.
   app.notFound((c) => c.json({ error: { code: 'NOT_FOUND', message: 'Route inconnue' } }, 404))
 
-  // 5. Identification du joueur pour les routes qui en ont besoin.
-  //    Provisoire : un joueur unique, en attendant l'authentification du TD4.
-  app.use('/realm/*', demoUser())
+  // 5. Routes d'authentification (inscription, connexion, déconnexion, session),
+  //    entièrement traitées par l'adaptateur d'authentification.
+  app.on(['GET', 'POST'], '/auth/*', (c) => auth.handler(c.req.raw))
 
-  // 6. Montage des sous-applications : chaque module reçoit son propre préfixe.
+  // 6. Routes réservées aux joueurs connectés : toute requête anonyme est refusée (401).
+  //    Chaque nouveau module dont les routes sont réservées aux joueurs est ajouté ici.
+  app.use('/realm/*', requireUser(auth))
+
+  // 7. Montage des sous-applications : chaque module reçoit son propre préfixe.
   //    Les appels sont chaînés afin que TypeScript conserve le type de chaque route.
   return app.route('/system', system.api).route('/realm', realm.api)
 }
