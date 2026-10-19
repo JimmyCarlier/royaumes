@@ -7,7 +7,6 @@ import {
 } from '../domain/village'
 import type { VillageRepository } from './village-repository'
 
-
 /** Résultat d'une commande : la vue mise à jour, ou l'erreur métier. */
 export type CommandResult = { ok: true; view: VillageView } | { ok: false; error: DomainError }
 
