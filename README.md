@@ -51,12 +51,20 @@ Un module n'est accessible depuis l'extérieur que par ses entrées publiques : 
 | Module | Rôle | Adresse de l'API |
 | --- | --- | --- |
 | `system` | Route de santé | `/api/system` |
+| `realm` | Village : fondation, production de ressources, amélioration des bâtiments | `/api/realm` |
 
 ## Documentation
 
 - [Décisions d'architecture](docs/adr/README.md)
+- [Registre de la dette technique](docs/qualite/dette-technique.md)
 
 ## Conventions
 
-- Messages de commit conformes à Conventional Commits.
+- Messages de commit conformes à Conventional.
 - `pnpm verify` doit réussir avant tout envoi sur la branche `main`.
+
+## Limites actuelles
+
+Le projet est en cours de construction. Les données du Village sont conservées en mémoire
+et sont perdues à chaque redémarrage du serveur, et toutes les requêtes sont attribuées à
+un joueur unique. Ces limites sont recensées dans le registre de la dette technique.
