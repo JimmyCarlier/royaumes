@@ -1,38 +1,62 @@
-<<<<<<< HEAD
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Royaumes
 
-## Getting Started
+Jeu web multijoueur servant de support au module Architecture et pilotage technique.
+Le projet est organisé en monolithe modulaire : une application Next.js unique, découpée
+en une plateforme technique et en modules métier aux frontières vérifiées automatiquement.
 
-First, run the development server:
+## Prérequis
+
+- Node.js 22 ou supérieur
+- pnpm 10
+
+## Démarrage
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
+pnpm install
 pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+L'application est disponible à l'adresse http://localhost:3000.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Commandes
 
-## Learn More
+| Commande | Rôle |
+| --- | --- |
+| `pnpm dev` | Serveur de développement |
+| `pnpm build` | Construction de la version de production |
+| `pnpm start` | Serveur de production (après `pnpm build`) |
+| `pnpm lint` | Formatage et analyse statique (Biome), sans modification |
+| `pnpm lint:fix` | Application des corrections automatiques de Biome |
+| `pnpm lint:archi` | Vérification des règles d'architecture (dependency-cruiser) |
+| `pnpm typecheck` | Vérification des types (TypeScript) |
+| `pnpm test` | Exécution des tests (Vitest) |
+| `pnpm verify` | Ensemble des contrôles, à exécuter avant toute publication |
 
-To learn more about Next.js, take a look at the following resources:
+## Architecture
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+```
+app/                  Pages et route unique de l'API (Next.js)
+src/
+  platform/           Plateforme technique, générique
+  modules/            Modules métier, un répertoire par contexte délimité
+  bootstrap/          Racine de composition
+  ui/                 Thème et composants d'interface partagés
+docs/
+  adr/                Décisions d'architecture
+```
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+Un module n'est accessible depuis l'extérieur que par ses entrées publiques : `index.ts`
+(serveur), `contracts.ts` (types partagés) et `ui.tsx` (interface).
 
-## Deploy on Vercel
+| Module | Rôle | Adresse de l'API |
+| --- | --- | --- |
+| `system` | Route de santé | `/api/system` |
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+## Documentation
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
-=======
-# royaumes
->>>>>>> 0c06d651179e90a219e161224e214499b1e47609
+- [Décisions d'architecture](docs/adr/README.md)
+
+## Conventions
+
+- Messages de commit conformes à Conventional Commits.
+- `pnpm verify` doit réussir avant tout envoi sur la branche `main`.
