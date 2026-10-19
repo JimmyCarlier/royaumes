@@ -12,7 +12,9 @@
     "start": "next start",
     "lint": "biome ci .",
     "lint:fix": "biome check --write .",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest"
   },
   "dependencies": {
     "hono": "4.13.13",
@@ -25,7 +27,8 @@
     "@types/node": "^22",
     "@types/react": "^19",
     "@types/react-dom": "^19",
-    "typescript": "6.0.3"
+    "typescript": "6.0.3",
+    "vitest": "5.0.4"
   },
   "packageManager": "pnpm@10.34.7"
 }
