@@ -1,4 +1,4 @@
-# ADR-NNNN - Titre de la décision
+# ADR-0002 - l'Event Sourcing comme mode de persistance du Village.
 
 - Statut : accepté
 - Date : 2026-10-19
