@@ -42,3 +42,6 @@ next-env.d.ts
 
 # Données locales de développement (base PGlite)
 .data
+
+# Le modèle des variables d'environnement, lui, est versionné.
+!.env.example
