@@ -65,6 +65,15 @@ module.exports = {
       from: {},
       to: { circular: true },
     },
+    {
+      // Règle 2 bis : la couche application ne dépend que du domaine et de ses propres ports,
+      // jamais des adaptateurs de l'infrastructure (architecture hexagonale).
+      name: 'application-ignores-infrastructure',
+      comment: "La couche application d'un module n'importe jamais son infrastructure.",
+      severity: 'error',
+      from: { path: '^src/modules/([^/]+)/application/' },
+      to: { path: '^src/modules/$1/infrastructure/' },
+    },
   ],
   options: {
     // Les paquets installés ne sont pas analysés.
