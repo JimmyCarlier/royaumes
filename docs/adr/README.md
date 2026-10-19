@@ -7,3 +7,4 @@ un nouvel ADR est rédigé et l'ancien prend le statut « remplacé ».
 | N° | Décision | Statut |
 | --- | --- | --- |
 | [0001](0001-monolithe-modulaire.md) | Monolithe modulaire plutôt que microservices | Accepté |
+| [0002](0002-event-sourcing-village.md) | Event Sourcing pour le Village | Accepté |
