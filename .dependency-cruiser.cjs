@@ -17,7 +17,10 @@ module.exports = {
         "Un module n'importe jamais l'intérieur d'un autre module, seulement ses entrées publiques.",
       severity: 'error',
       from: { path: '^src/modules/([^/]+)/' },
-      to: { path: '^src/modules/[^/]+/', pathNot: ['^src/modules/$1/', PUBLIC_ENTRIES] },
+      to: {
+        path: '^src/modules/[^/]+/',
+        pathNot: ['^src/modules/$1/', PUBLIC_ENTRIES],
+      },
     },
     {
       // Règle 1, vue depuis le reste du projet (pages, racine de composition, plateforme).
@@ -54,6 +57,8 @@ module.exports = {
       from: { path: '(^src/modules/[^/]+/ui\\.tsx$)|(^src/ui/)' },
       to: {
         path: '^src/(platform/|bootstrap/|modules/[^/]+/(api\\.ts|index\\.ts|application/|infrastructure/))',
+        // Seule exception : le client d'authentification, écrit pour le navigateur.
+        pathNot: '^src/platform/auth/client\\.ts$',
         dependencyTypesNot: ['type-only'],
       },
     },

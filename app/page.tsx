@@ -1,19 +1,12 @@
-import Link from 'next/link'
-import { HealthStatus } from '@/modules/system/ui'
+import { headers } from 'next/headers'
+import { redirect } from 'next/navigation'
+import { currentUser } from '@/bootstrap/server'
 
-/**
- * Page d'accueil provisoire.
- * Elle sera remplacée lorsque l'authentification sera en place.
- */
-export default function Home() {
-  return (
-    <>
-      <h1>Royaumes</h1>
-      <p className="muted">Le socle du projet est en place.</p>
-      <HealthStatus />
-      <p>
-        <Link href="/village">Accéder au village</Link>
-      </p>
-    </>
-  )
+// La redirection dépend de la session : la page est évaluée à chaque requête.
+export const dynamic = 'force-dynamic'
+
+/** Page d'accueil : oriente vers le village si un joueur est connecté, vers la connexion sinon. */
+export default async function Home() {
+  const user = await currentUser(await headers())
+  redirect(user ? '/village' : '/login')
 }

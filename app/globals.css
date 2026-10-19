@@ -73,3 +73,19 @@ input {
 .stock small { display: block; font-size: 0.8rem; color: var(--muted); }
 .buildings { display: grid; gap: 12px; }
 .building { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; }
+
+/* Navigation de l'espace de jeu. */
+.nav {
+  display: flex;
+  gap: 16px;
+  align-items: center;
+  flex-wrap: wrap;
+  margin-bottom: 16px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid color-mix(in srgb, var(--muted) 30%, transparent);
+}
+.nav a { color: var(--ink); text-decoration: none; }
+.nav a[aria-current='page'] { color: var(--accent); font-weight: 600; }
+
+/* Bouton présenté comme un lien. */
+button.link { background: none; color: var(--accent); padding: 0; }
