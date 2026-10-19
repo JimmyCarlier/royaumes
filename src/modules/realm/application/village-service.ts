@@ -28,6 +28,8 @@ export function createVillageService(repo: VillageRepository, clock = () => Date
     if (!decision.ok) return decision
 
     // 4. Enregistrer les événements produits, à la suite de la version lue.
+    //    DETTE TECHNIQUE DT-003 (docs/qualite/dette-technique.md) : un conflit de version
+    //    lève une exception non traitée ; il sera rejoué au TD3.
     await repo.save(userId, version, decision.events)
 
     // 5. Renvoyer la vue de l'état obtenu.
