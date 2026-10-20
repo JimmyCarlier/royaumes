@@ -9,6 +9,10 @@ export const runtime = 'nodejs'
 // Les réponses de l'API ne sont jamais mises en cache ni générées lors de la construction.
 export const dynamic = 'force-dynamic'
 
+// Durée maximale d'exécution d'une requête sur Vercel, en secondes : elle borne la durée
+// des flux temps réel, qui se ferment d'eux-mêmes avant (240 s).
+export const maxDuration = 300
+
 // Chaque requête est transmise telle quelle à l'application Hono, qui se charge du routage.
 const handle = (request: Request) => getServer().api.fetch(request)
 
