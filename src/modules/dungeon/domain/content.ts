@@ -11,6 +11,9 @@ export type Difficulty = (typeof DIFFICULTIES)[number]
 /** Niveau attribué aux expéditions enregistrées avant l'introduction des niveaux (TD7). */
 export const DEFAULT_DIFFICULTY: Difficulty = 'easy'
 
+/** Bonus d'attaque des monstres selon le niveau, appliqué lors du tirage des salles. */
+export const MONSTER_ATTACK_BONUS: Record<Difficulty, number> = { easy: 0, hard: 3 }
+
 /** Nombre maximal de héros dans une expédition. */
 export const MAX_HEROES = 4
 

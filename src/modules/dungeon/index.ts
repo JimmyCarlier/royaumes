@@ -39,3 +39,4 @@ export function createDungeonModule({ store, clock }: DungeonModuleDeps) {
 }
 
 export type { DungeonApi } from './api'
+export { type SimulationSetup, winRate } from './domain/simulation'

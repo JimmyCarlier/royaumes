@@ -10,12 +10,14 @@ import {
   BOSS,
   COMMON_MONSTERS,
   DAMAGE_SPREAD,
+  DEFAULT_DIFFICULTY,
   type Difficulty,
   DUNGEON_LENGTH,
   EXPLORE_MS,
   HEAL_AMOUNT,
   HERO,
   MAX_HEROES,
+  MONSTER_ATTACK_BONUS,
   MONSTERS,
   type MonsterKind,
   ROOM_ODDS,
@@ -82,10 +84,20 @@ const fail = (error: GameError): Decision => ({ ok: false, error })
 
 /**
  * Tire le contenu des salles. La graine dérivée mix(seed, 0) ne sert qu'aux salles :
- * le même donjon est obtenu pour la même graine et le même nombre de héros.
+ * le même donjon est obtenu pour la même graine, le même nombre de héros et le même niveau.
+ * Les caractéristiques des monstres, bonus du niveau compris, sont enregistrées dans les salles.
  */
-export function generateRooms(seed: number, heroCount: number): Room[] {
+export function generateRooms(
+  seed: number,
+  heroCount: number,
+  difficulty: Difficulty = DEFAULT_DIFFICULTY,
+): Room[] {
   const random = seeded(mix(seed, 0))
+  const spec = (kind: MonsterKind): MonsterSpec => ({
+    kind,
+    hp: MONSTERS[kind].hp,
+    attack: MONSTERS[kind].attack + MONSTER_ATTACK_BONUS[difficulty],
+  })
   const rooms: Room[] = []
   for (let index = 0; index < DUNGEON_LENGTH - 1; index++) {
     const roll = random()
@@ -109,13 +121,6 @@ export function generateRooms(seed: number, heroCount: number): Room[] {
   return rooms
 }
 
-/** Caractéristiques d'un monstre, lues dans le contenu du jeu au moment du tirage. */
-const spec = (kind: MonsterKind): MonsterSpec => ({
-  kind,
-  hp: MONSTERS[kind].hp,
-  attack: MONSTERS[kind].attack,
-})
-
 /** Dégâts infligés par un combattant : son attaque, plus ou moins l'écart autorisé. */
 const rollDamage = (random: Random, attack: number, spread: number) =>
   Math.max(1, randomInt(random, attack - spread, attack + spread))
@@ -133,12 +138,17 @@ export function resolveRound(state: GameState, at: number): GameEvent[] {
   const random = seeded(mix(state.seed, 1, state.round))
 
   // L'action de chaque compagnon est décidée maintenant, sur la situation du début de manche.
-  // Un héros incarné qui n'a rien choisi se défend.
+  // Un compagnon accompagne ses joueurs, et ne joue pas à leur place : si aucun joueur
+  // n'a choisi d'action, il se défend lui aussi. Un héros incarné sans choix se défend.
+  const playersActed = Object.keys(state.choices).length > 0
   const actions: Record<string, Action> = {}
   for (const hero of standingHeroes(state)) {
-    actions[hero.id] = hero.companion
-      ? chooseCompanionAction({ heroes: standingHeroes(state), monsters: standingMonsters(state) })
-      : (state.choices[hero.id] ?? { type: 'defend' })
+    if (hero.companion && playersActed) {
+      const situation = { heroes: standingHeroes(state), monsters: standingMonsters(state) }
+      actions[hero.id] = chooseCompanionAction(situation)
+    } else {
+      actions[hero.id] = state.choices[hero.id] ?? { type: 'defend' }
+    }
   }
 
   // Copies de travail, mises à jour effet après effet.
@@ -324,7 +334,7 @@ function decideCommand(state: GameState, command: GameCommand, now: number): Dec
           {
             type: 'GameStarted',
             data: {
-              rooms: generateRooms(state.seed, state.heroes.length),
+              rooms: generateRooms(state.seed, state.heroes.length, state.difficulty),
               deadline: now + EXPLORE_MS,
               at: now,
             },
