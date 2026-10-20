@@ -9,6 +9,7 @@ import { Entity } from './entity'
 export const NAV = [
   { href: '/village', kind: 'village', label: 'Village' },
   { href: '/dungeon', kind: 'dungeon', label: 'Donjon' },
+  { href: '/ranking', kind: 'ranking', label: 'Classement' },
 ]
 
 /** Cadre de l'espace de jeu : navigation, nom du joueur et déconnexion. */

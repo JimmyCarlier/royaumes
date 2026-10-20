@@ -103,3 +103,8 @@ button.link { background: none; color: var(--accent); padding: 0; }
 .ok { font-size: 0.85rem; color: var(--ok); }
 .actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 12px; }
 .countdown { font-variant-numeric: tabular-nums; font-weight: 600; color: var(--accent); }
+/* Écran du Classement. */
+.ranking { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
+.ranking th, .ranking td { padding: 6px 8px; text-align: left; }
+.ranking tbody tr { border-top: 1px solid color-mix(in srgb, var(--muted) 25%, transparent); }
+.ranking tr[aria-current='true'] { font-weight: 600; color: var(--accent); }

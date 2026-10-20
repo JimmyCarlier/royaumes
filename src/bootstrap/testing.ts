@@ -24,10 +24,12 @@ type TestUser = string | null
  */
 export async function createTestApi() {
   let now = Date.UTC(2026, 0, 1)
-  const store = createEventStore(await createTestDatabase())
+  const db = await createTestDatabase()
+  const store = createEventStore(db)
   // Flux temps réel très courts, afin que les tests ne restent pas bloqués sur un flux ouvert.
   const api = createApi({
     auth: testAuth,
+    db,
     store,
     clock: () => now,
     realtime: { pollMs: 20, maxStreamMs: 150 },
