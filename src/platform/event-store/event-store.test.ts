@@ -75,6 +75,32 @@ describe("Journal d'événements", () => {
   })
 })
 
+describe('Lecture de plusieurs flux', () => {
+  it("relit tous les flux d'un même préfixe, dans l'ordre global", async () => {
+    await store.append('game-1', 0, [{ type: 'A', data: {} }])
+    await store.append('other-1', 0, [{ type: 'B', data: {} }])
+    await store.append('game-2', 0, [{ type: 'C', data: {} }])
+    await store.append('game-1', 1, [{ type: 'D', data: {} }])
+
+    const events = await store.readAll({ streamPrefix: 'game-' })
+    expect(events.map((e) => [e.stream, e.type])).toEqual([
+      ['game-1', 'A'],
+      ['game-2', 'C'],
+      ['game-1', 'D'],
+    ])
+  })
+
+  it('ne relit que les types demandés', async () => {
+    await store.append('game-1', 0, [
+      { type: 'A', data: {} },
+      { type: 'B', data: {} },
+      { type: 'C', data: {} },
+    ])
+    const events = await store.readAll({ streamPrefix: 'game-', types: ['A', 'C'] })
+    expect(events.map((e) => e.type)).toEqual(['A', 'C'])
+  })
+})
+
 describe('Nouvel essai en cas de conflit', () => {
   it("rejoue l'opération après un conflit, en relisant l'état", async () => {
     await store.append('s-1', 0, [{ type: 'A', data: {} }])

@@ -49,3 +49,6 @@ export const ROOM_ODDS = { empty: 0.3, treasure: 0.3, monsters: 0.4 }
 
 /** Or contenu dans un trésor : minimum et maximum. */
 export const TREASURE_GOLD = { min: 10, max: 30 }
+
+/** Durée pendant laquelle une expédition qui n'a pas été lancée reste proposée, en millisecondes. */
+export const OPEN_GAME_MS = 60 * 60_000

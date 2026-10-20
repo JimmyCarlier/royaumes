@@ -1,4 +1,4 @@
-import { and, asc, eq, gt } from 'drizzle-orm'
+import { and, asc, eq, gt, inArray, like } from 'drizzle-orm'
 import type { Db } from '../db/client'
 import { events } from './schema'
 
@@ -37,6 +37,13 @@ export interface EventStore {
 
   /** Relit les événements d'un flux postérieurs à une version (tous par défaut), dans l'ordre. */
   read(stream: string, afterVersion?: number): Promise<StoredEvent[]>
+
+  /**
+   * Relit, dans l'ordre global des positions, les événements de tous les flux dont le nom
+   * commence par streamPrefix, éventuellement limités à certains types.
+   * Le préfixe ne doit contenir ni « % » ni « _ », caractères spéciaux de l'opérateur LIKE.
+   */
+  readAll(options: { streamPrefix: string; types?: string[] }): Promise<StoredEvent[]>
 }
 
 /**
@@ -97,6 +104,17 @@ export function createEventStore(db: Db): EventStore {
         .from(events)
         .where(and(eq(events.stream, stream), gt(events.version, afterVersion)))
         .orderBy(asc(events.version))
+      return rows.map(toStored)
+    },
+
+    async readAll({ streamPrefix, types }) {
+      const conditions = [like(events.stream, `${streamPrefix}%`)]
+      if (types) conditions.push(inArray(events.type, types))
+      const rows = await db
+        .select()
+        .from(events)
+        .where(and(...conditions))
+        .orderBy(asc(events.position))
       return rows.map(toStored)
     },
   }
