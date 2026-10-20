@@ -41,6 +41,7 @@ aucune n'est obligatoire. Pour définir vos propres valeurs, copiez ce fichier e
 | `pnpm test` | Exécution des tests (Vitest) |
 | `pnpm verify` | Ensemble des contrôles, à exécuter avant toute publication |
 | `pnpm db:generate --name <nom>` | Production d'une migration après la modification d'un fichier `schema.ts` |
+| `pnpm exec tsx scripts/simulate-dungeon.ts` | Mesure de l'équilibre du Donjon par la simulation d'expéditions |
 | `pnpm db:migrate` | Application des migrations à la base désignée par `DATABASE_URL_UNPOOLED` ou `DATABASE_URL` |
 | `pnpm vercel-build` | Construction exécutée par Vercel : contrôles, migrations, puis construction |
 
@@ -68,7 +69,7 @@ Un module n'est accessible depuis l'extérieur que par ses entrées publiques : 
 | --- | --- | --- |
 | `system` | Route de santé | `/api/system` |
 | `realm` | Village : fondation, production de ressources, amélioration des bâtiments | `/api/realm` |
-| `dungeon` | Donjon : expéditions de un à quatre héros, exploration et combats en manches simultanées | `/api/dungeon` |
+| `dungeon` | Donjon : expéditions de un à quatre héros, compagnons pilotés par l'ordinateur, deux niveaux de difficulté, combats en manches simultanées | `/api/dungeon` |
 
 ## Temps réel
 
@@ -124,7 +125,8 @@ Chaque flux temps réel relit le journal d'événements deux fois par seconde : 
 la base croît avec le nombre de joueurs connectés. Ce compromis, acceptable pour le nombre
 de joueurs du projet, est décrit dans l'ADR 0003.
 
-Une manche du Donjon dont l'échéance est passée n'est enregistrée qu'à la commande suivante
-d'un membre de l'expédition ; toute lecture l'affiche néanmoins comme résolue (ADR 0004).
-Les autres limites connues, dont la liste des expéditions ouvertes et l'absence d'échéance
-pendant l'exploration, sont recensées dans le registre de la dette technique.
+Une échéance du Donjon, de manche ou d'exploration, n'est enregistrée qu'à la commande
+suivante d'un membre de l'expédition ; toute lecture l'affiche néanmoins comme passée
+(ADR 0004). Les expéditions de quatre joueurs restent faciles, même au niveau difficile :
+le script de simulation permet de le mesurer. Les autres limites connues, dont la liste
+des expéditions ouvertes, sont recensées dans le registre de la dette technique.

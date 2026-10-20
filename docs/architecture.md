@@ -58,7 +58,7 @@ flowchart TB
   subgraph modules["src/modules"]
     system["system<br/>Route de santé"]
     realm["realm<br/>Village : domaine, service,<br/>dépôt fondé sur le journal, API, canal"]
-    dungeon["dungeon<br/>Donjon : domaine, service,<br/>dépôt fondé sur le journal, API, canal discret"]
+    dungeon["dungeon<br/>Donjon : domaine et IA, service,<br/>dépôt fondé sur le journal, API, canal discret"]
   end
   subgraph platform["src/platform"]
     auth["auth<br/>Port AuthPort,<br/>adaptateur Better Auth"]
