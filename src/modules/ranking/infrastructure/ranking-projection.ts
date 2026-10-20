@@ -41,6 +41,7 @@ async function recordPlayer(tx: DbTransaction, gameId: string, playerId: string,
 /** Projection du classement : met à jour les totaux des joueurs à partir du journal. */
 export const rankingProjection: Projection = {
   name: 'ranking',
+  version: 1,
   eventTypes: ['GameCreated', 'PlayerJoined', 'GameEnded', 'VillageFounded', 'BuildingUpgraded'],
 
   async apply(event, tx) {
@@ -101,5 +102,10 @@ export const rankingProjection: Projection = {
         return
       }
     }
+  },
+
+  async reset(tx) {
+    await tx.delete(gamePlayers)
+    await tx.delete(players)
   },
 }

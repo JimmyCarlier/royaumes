@@ -22,12 +22,16 @@ beforeEach(async () => {
  */
 const counting: Projection = {
   name: 'test-counting',
+  version: 1,
   eventTypes: ['A', 'B', 'BOOM'],
   async apply(event, tx) {
     if (event.type === 'BOOM') throw new Error('panne de la projection')
     await tx.execute(sql`
       INSERT INTO test_counts (type, count) VALUES (${event.type}, 1)
       ON CONFLICT (type) DO UPDATE SET count = test_counts.count + 1`)
+  },
+  async reset(tx) {
+    await tx.execute(sql`DELETE FROM test_counts`)
   },
 }
 
@@ -123,5 +127,52 @@ describe('Écarts de positions', () => {
 
     expect(await runner.catchUp(counting)).toBe(2)
     expect(await runner.positionOf('test-counting')).toBe(3)
+  })
+})
+
+describe('Reconstruction et évolution', () => {
+  it('reconstruit, à partir du journal, les tables obtenues par rattrapages successifs', async () => {
+    const runner = createProjectionRunner(db)
+    await store.append('s-1', 0, [{ type: 'A', data: {} }])
+    await runner.catchUp(counting)
+    await store.append('s-2', 0, [
+      { type: 'B', data: {} },
+      { type: 'A', data: {} },
+    ])
+    await runner.catchUp(counting)
+    const before = await counts()
+
+    expect(await runner.rebuild(counting)).toBe(3)
+    expect(await counts()).toEqual(before)
+    expect(await runner.positionOf('test-counting')).toBe(3)
+  })
+
+  it('reconstruit les tables lorsque la version de la projection change', async () => {
+    const runner = createProjectionRunner(db)
+    await store.append('s-1', 0, [
+      { type: 'A', data: {} },
+      { type: 'B', data: {} },
+      { type: 'A', data: {} },
+    ])
+    await runner.catchUp(counting)
+
+    // Version 2 : la projection ne compte plus que les événements A.
+    const evolved: Projection = { ...counting, version: 2, eventTypes: ['A'] }
+    expect(await runner.catchUp(evolved)).toBe(2)
+    expect(await counts()).toEqual({ A: 2 })
+    // La reconstruction n'a lieu qu'une fois : la version est désormais enregistrée.
+    expect(await runner.catchUp(evolved)).toBe(0)
+  })
+
+  it('ne modifie pas les tables construites par une version plus récente', async () => {
+    const runner = createProjectionRunner(db)
+    await store.append('s-1', 0, [{ type: 'A', data: {} }])
+    await runner.catchUp({ ...counting, version: 2 })
+    await store.append('s-1', 1, [{ type: 'B', data: {} }])
+
+    // Le code de la version 1, encore en service pendant un déploiement, n'écrit plus rien.
+    expect(await runner.catchUp(counting)).toBe(0)
+    expect(await counts()).toEqual({ A: 1 })
+    expect(await runner.positionOf('test-counting')).toBe(1)
   })
 })
