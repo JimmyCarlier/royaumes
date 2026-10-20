@@ -1,8 +1,8 @@
 import { Hono } from 'hono'
 import { streamSSE } from 'hono/streaming'
-import type { EventStore } from '../event-store/event-store'
+import type { EventStore, StoredEvent } from '../event-store/event-store'
 import type { AppEnv } from '../http/types'
-import { type ChannelPolicy, isAllowed } from './channel-policy'
+import { authorize, type ChannelPolicy } from './channel-policy'
 
 export interface RealtimeOptions {
   /** Journal d'événements : un canal correspond à un flux du journal. */
@@ -23,6 +23,15 @@ export interface RealtimeOptions {
 const FORBIDDEN = { error: { code: 'FORBIDDEN', message: 'Canal non autorisé' } } as const
 
 /**
+ * Forme sous laquelle un événement est transmis au navigateur. Sur un canal discret,
+ * ses données sont retirées : seuls restent le flux, la version et le type.
+ */
+function present(event: StoredEvent, policy: ChannelPolicy) {
+  if (!policy.redact) return event
+  return { stream: event.stream, version: event.version, type: event.type, data: {} }
+}
+
+/**
  * Sous-application du temps réel, montée sur /api/stream.
  * Le flux ne conserve aucun état en mémoire : il relit le journal, et n'importe quelle
  * instance de l'application peut donc servir n'importe quel joueur.
@@ -40,7 +49,8 @@ export function createRealtimeApi({
       // Flux SSE d'un canal.
       .get('/:channel', async (c) => {
         const channel = c.req.param('channel')
-        if (!(await isAllowed(policies, channel, c.var.userId))) return c.json(FORBIDDEN, 403)
+        const policy = await authorize(policies, channel, c.var.userId)
+        if (!policy) return c.json(FORBIDDEN, 403)
 
         // Point de reprise : l'en-tête Last-Event-ID, envoyé par le navigateur à la reconnexion,
         // ou à défaut le paramètre after ; 0 pour recevoir tout le flux.
@@ -67,7 +77,7 @@ export function createRealtimeApi({
               await stream.writeSSE({
                 id: String(event.version),
                 event: 'domain-event',
-                data: JSON.stringify(event),
+                data: JSON.stringify(present(event, policy)),
               })
               lastVersion = event.version
               lastWrite = Date.now()
@@ -87,9 +97,11 @@ export function createRealtimeApi({
       // Repli sans diffusion progressive : les événements du canal postérieurs à after.
       .get('/:channel/events', async (c) => {
         const channel = c.req.param('channel')
-        if (!(await isAllowed(policies, channel, c.var.userId))) return c.json(FORBIDDEN, 403)
+        const policy = await authorize(policies, channel, c.var.userId)
+        if (!policy) return c.json(FORBIDDEN, 403)
         const after = Number(c.req.query('after') ?? 0) || 0
-        return c.json({ events: await store.read(channel, after) })
+        const events = await store.read(channel, after)
+        return c.json({ events: events.map((event) => present(event, policy)) })
       })
   )
 }

@@ -8,17 +8,23 @@ export interface ChannelPolicy {
   prefix: string
   /** Indique si un joueur a le droit d'écouter un canal portant ce préfixe. */
   canSubscribe(channel: string, userId: string): boolean | Promise<boolean>
+  /**
+   * Canal discret : le flux ne transmet que le type et la version de chaque événement,
+   * jamais ses données. Chaque abonné relit alors sa propre vue auprès de l'API.
+   */
+  redact?: boolean
 }
 
 /**
- * Indique si un joueur peut écouter un canal.
+ * Renvoie la règle qui autorise un joueur à écouter un canal, ou null si l'accès est refusé.
  * Un canal qu'aucune règle ne couvre est refusé : l'accès est fermé par défaut.
  */
-export async function isAllowed(
+export async function authorize(
   policies: ChannelPolicy[],
   channel: string,
   userId: string,
-): Promise<boolean> {
+): Promise<ChannelPolicy | null> {
   const policy = policies.find((p) => channel.startsWith(p.prefix))
-  return policy ? policy.canSubscribe(channel, userId) : false
+  if (!policy) return null
+  return (await policy.canSubscribe(channel, userId)) ? policy : null
 }
