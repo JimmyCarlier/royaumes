@@ -8,9 +8,7 @@ import { RANKING_SIZE } from './contracts'
  * Elle ne comporte qu'une route de lecture : le module n'accepte aucune commande.
  */
 export function createRankingApi(reader: RankingReader) {
-  return new Hono<AppEnv>().get('/players', async (c) =>
-    c.json({ entries: await reader.top(RANKING_SIZE) }),
-  )
+  return new Hono<AppEnv>().get('/players', async (c) => c.json(await reader.top(RANKING_SIZE)))
 }
 
 /** Type de la sous-application, utilisé par le client typé de l'interface. */

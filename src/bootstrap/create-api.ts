@@ -44,7 +44,11 @@ export function createApi({ auth, db, store, ready, clock, realtime }: ApiDeps) 
   const ranking = createRankingModule({ db, projections })
 
   // Règles d'accès aux canaux temps réel, déclarées par les modules.
-  const policies: ChannelPolicy[] = [realm.channelPolicy, dungeon.channelPolicy]
+  const policies: ChannelPolicy[] = [
+    realm.channelPolicy,
+    dungeon.channelPolicy,
+    ranking.channelPolicy,
+  ]
 
   // 2. Application principale : toutes ses routes sont préfixées par /api.
   const app = new Hono<AppEnv>().basePath('/api')

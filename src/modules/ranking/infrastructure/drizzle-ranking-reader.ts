@@ -16,6 +16,9 @@ export function createDrizzleRankingReader(db: Db, projections: ProjectionRunner
       // Rattrapage à la lecture : la table est mise à jour avant d'être lue.
       await projections.catchUp(rankingProjection)
 
+      // La position est lue avant la table : la table reflète au moins cette position.
+      // Lue après, elle pourrait annoncer un événement appliqué entre-temps, et absent des lignes.
+      const position = await projections.positionOf(rankingProjection.name)
       const rows = await db
         .select()
         .from(players)
@@ -27,7 +30,7 @@ export function createDrizzleRankingReader(db: Db, projections: ProjectionRunner
         )
         .limit(limit)
 
-      return rows.map((row, index) => ({
+      const entries = rows.map((row, index) => ({
         rank: index + 1,
         playerId: row.playerId,
         label: labelOf(row),
@@ -37,6 +40,7 @@ export function createDrizzleRankingReader(db: Db, projections: ProjectionRunner
         upgrades: row.upgrades,
         bestLoot: row.bestLoot,
       }))
+      return { position, entries }
     },
   }
 }

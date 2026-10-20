@@ -35,7 +35,7 @@ const ended = (result: 'won' | 'lost', loot: number, heroIds: string[]): NewEven
 
 /** Ligne du classement d'un joueur. */
 const entryOf = async (playerId: string) =>
-  (await reader.top(20)).find((entry) => entry.playerId === playerId)
+  (await reader.top(20)).entries.find((entry) => entry.playerId === playerId)
 
 describe('Projection du classement', () => {
   it("attribue le résultat d'une expédition gagnée à ses joueurs, sans les compagnons", async () => {
@@ -46,7 +46,7 @@ describe('Projection du classement', () => {
       ended('won', 40, ['alice', 'bob', 'companion-1']),
     ])
 
-    const entries = await reader.top(20)
+    const { entries } = await reader.top(20)
     expect(entries.map((entry) => entry.playerId).sort()).toEqual(['alice', 'bob'])
     expect(await entryOf('alice')).toMatchObject({
       label: 'ALICE',
@@ -84,7 +84,7 @@ describe('Projection du classement', () => {
     await store.append('dungeon-g3', 0, [created('carol'), ended('lost', 0, ['carol'])])
     await store.append('dungeon-g4', 0, [created('alice'), ended('won', 5, ['alice'])])
 
-    const entries = await reader.top(20)
+    const { entries } = await reader.top(20)
     expect(entries.map((entry) => [entry.rank, entry.playerId])).toEqual([
       [1, 'alice'],
       [2, 'bob'],

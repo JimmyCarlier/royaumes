@@ -99,6 +99,17 @@ describe('Lecture de plusieurs flux', () => {
     const events = await store.readAll({ streamPrefix: 'game-', types: ['A', 'C'] })
     expect(events.map((e) => e.type)).toEqual(['A', 'C'])
   })
+
+  it('relit tous les flux après une position, et connaît la dernière position', async () => {
+    expect(await store.lastPosition()).toBe(0)
+    await store.append('game-1', 0, [{ type: 'A', data: {} }])
+    await store.append('other-1', 0, [{ type: 'B', data: {} }])
+    await store.append('game-2', 0, [{ type: 'A', data: {} }])
+
+    const events = await store.readAll({ types: ['A'], afterPosition: 1 })
+    expect(events.map((e) => [e.position, e.stream])).toEqual([[3, 'game-2']])
+    expect(await store.lastPosition()).toBe(3)
+  })
 })
 
 describe('Nouvel essai en cas de conflit', () => {

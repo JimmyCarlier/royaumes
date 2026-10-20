@@ -19,5 +19,18 @@ export interface RankingEntry {
   bestLoot: number
 }
 
+/** Classement renvoyé par l'API. */
+export interface Ranking {
+  /**
+   * Position du journal jusqu'à laquelle le classement est à jour. L'interface la compare
+   * à la position des événements annoncés par le canal du classement.
+   */
+  position: number
+  entries: RankingEntry[]
+}
+
 /** Nombre de joueurs présentés par le classement. */
 export const RANKING_SIZE = 20
+
+/** Nom du canal temps réel du classement, qui ne correspond à aucun flux du journal. */
+export const RANKING_CHANNEL = 'ranking'

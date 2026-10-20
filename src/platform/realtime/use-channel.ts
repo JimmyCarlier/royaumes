@@ -6,6 +6,8 @@ export type ChannelStatus = 'connecting' | 'open' | 'reconnecting'
 
 /** Événement reçu sur un canal : un événement du journal, sous sa forme générique. */
 export interface ChannelEvent {
+  /** Position dans le journal, tous flux confondus. */
+  position: number
   stream: string
   version: number
   type: string

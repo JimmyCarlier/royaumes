@@ -1,4 +1,4 @@
-import { and, asc, eq, gt, inArray, like } from 'drizzle-orm'
+import { and, asc, eq, gt, inArray, like, max } from 'drizzle-orm'
 import type { Db } from '../db/client'
 import { events } from './schema'
 
@@ -39,11 +39,19 @@ export interface EventStore {
   read(stream: string, afterVersion?: number): Promise<StoredEvent[]>
 
   /**
-   * Relit, dans l'ordre global des positions, les événements de tous les flux dont le nom
-   * commence par streamPrefix, éventuellement limités à certains types.
+   * Relit, dans l'ordre global des positions, les événements de plusieurs flux.
+   * Chaque option restreint la lecture : flux dont le nom commence par streamPrefix,
+   * types d'événements, positions postérieures à afterPosition.
    * Le préfixe ne doit contenir ni « % » ni « _ », caractères spéciaux de l'opérateur LIKE.
    */
-  readAll(options: { streamPrefix: string; types?: string[] }): Promise<StoredEvent[]>
+  readAll(options: {
+    streamPrefix?: string
+    types?: string[]
+    afterPosition?: number
+  }): Promise<StoredEvent[]>
+
+  /** Position du dernier événement enregistré, tous flux confondus ; 0 si le journal est vide. */
+  lastPosition(): Promise<number>
 }
 
 /**
@@ -107,15 +115,22 @@ export function createEventStore(db: Db): EventStore {
       return rows.map(toStored)
     },
 
-    async readAll({ streamPrefix, types }) {
-      const conditions = [like(events.stream, `${streamPrefix}%`)]
+    async readAll({ streamPrefix, types, afterPosition }) {
+      const conditions = []
+      if (streamPrefix !== undefined) conditions.push(like(events.stream, `${streamPrefix}%`))
       if (types) conditions.push(inArray(events.type, types))
+      if (afterPosition !== undefined) conditions.push(gt(events.position, afterPosition))
       const rows = await db
         .select()
         .from(events)
         .where(and(...conditions))
         .orderBy(asc(events.position))
       return rows.map(toStored)
+    },
+
+    async lastPosition() {
+      const [row] = await db.select({ value: max(events.position) }).from(events)
+      return Number(row?.value ?? 0)
     },
   }
 }

@@ -13,6 +13,12 @@ export interface ChannelPolicy {
    * jamais ses données. Chaque abonné relit alors sa propre vue auprès de l'API.
    */
   redact?: boolean
+  /**
+   * Canal global : il ne correspond à aucun flux, mais suit, dans tout le journal, les
+   * événements de certains types. Ses événements sont identifiés par leur position, et non
+   * par leur version, et il ne transmet que les événements postérieurs à son ouverture.
+   */
+  global?: { types: string[] }
 }
 
 /**

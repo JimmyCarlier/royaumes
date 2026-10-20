@@ -16,6 +16,13 @@ const policy: ChannelPolicy = {
 // mais le flux ne transmet pas les données des événements.
 const secretPolicy: ChannelPolicy = { prefix: 'secret-', canSubscribe: () => true, redact: true }
 
+// Règle de test d'un canal global : « all » suit les événements de type A de tous les flux.
+const globalPolicy: ChannelPolicy = {
+  prefix: 'all',
+  canSubscribe: (channel) => channel === 'all',
+  global: { types: ['A'] },
+}
+
 let store: EventStore
 let app: Hono<AppEnv>
 
@@ -31,7 +38,7 @@ beforeEach(async () => {
       '/stream',
       createRealtimeApi({
         store,
-        policies: [policy, secretPolicy],
+        policies: [policy, secretPolicy, globalPolicy],
         pollMs: 20,
         maxStreamMs: 150,
       }),
@@ -134,7 +141,32 @@ describe('Canal discret', () => {
       headers: { 'x-test-user': 'alice' },
     })
     expect(await res.json()).toEqual({
-      events: [{ stream: 'secret-1', version: 1, type: 'A', data: {} }],
+      events: [{ position: 1, stream: 'secret-1', version: 1, type: 'A', data: {} }],
     })
+  })
+})
+
+describe('Canal global', () => {
+  it('transmet les événements à venir de tous les flux, identifiés par leur position', async () => {
+    // Événement antérieur à l'ouverture du flux : il n'est pas transmis.
+    await store.append('x-1', 0, [{ type: 'A', data: {} }])
+    const reading = readStream('/stream/all')
+    await new Promise((resolve) => setTimeout(resolve, 50))
+    await store.append('x-2', 0, [{ type: 'A', data: {} }])
+    await store.append('x-1', 1, [{ type: 'B', data: {} }])
+    await store.append('x-3', 0, [{ type: 'A', data: {} }])
+
+    expect(eventIds((await reading).body)).toEqual(['2', '4'])
+  })
+
+  it('reprend après Last-Event-ID, qui désigne une position', async () => {
+    await store.append('x-1', 0, [{ type: 'A', data: {} }])
+    await store.append('x-2', 0, [
+      { type: 'B', data: {} },
+      { type: 'A', data: {} },
+    ])
+    const { body } = await readStream('/stream/all', { 'last-event-id': '1' })
+
+    expect(eventIds(body)).toEqual(['3'])
   })
 })
