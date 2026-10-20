@@ -9,5 +9,9 @@ export default defineConfig({
     environment: 'node',
     // Seuls les fichiers de test placés dans src/ sont exécutés.
     include: ['src/**/*.test.ts'],
+    // Les tests s'exécutent toujours dans un environnement de test, y compris lorsqu'ils
+    // sont lancés par la construction Vercel, où NODE_ENV vaut « production ». Ils ne
+    // dépendent ainsi d'aucune variable de l'environnement de production.
+    env: { NODE_ENV: 'test' },
   },
 })
