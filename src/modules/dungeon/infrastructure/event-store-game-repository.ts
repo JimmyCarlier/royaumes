@@ -21,6 +21,8 @@ export function createEventStoreGameRepository(store: EventStore): GameRepositor
 
     async listOpenGames(now) {
       // Seuls les trois types d'événements utiles à la liste sont relus, pour toutes les expéditions.
+      // DETTE TECHNIQUE DT-005 (docs/qualite/dette-technique.md) : la liste est recalculée à chaque
+      // consultation à partir de l'historique de toutes les expéditions jamais ouvertes.
       const stored = await store.readAll({
         streamPrefix: GAME_CHANNEL_PREFIX,
         types: ['GameCreated', 'PlayerJoined', 'GameStarted'],

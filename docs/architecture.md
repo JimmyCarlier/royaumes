@@ -58,11 +58,12 @@ flowchart TB
   subgraph modules["src/modules"]
     system["system<br/>Route de santé"]
     realm["realm<br/>Village : domaine, service,<br/>dépôt fondé sur le journal, API, canal"]
+    dungeon["dungeon<br/>Donjon : domaine, service,<br/>dépôt fondé sur le journal, API, canal discret"]
   end
   subgraph platform["src/platform"]
     auth["auth<br/>Port AuthPort,<br/>adaptateur Better Auth"]
     http["http<br/>Intergiciel requireUser,<br/>validation des requêtes"]
-    realtime["realtime<br/>Flux SSE,<br/>règles d'accès aux canaux"]
+    realtime["realtime<br/>Flux SSE, règles d'accès<br/>aux canaux, canaux discrets"]
     store["event-store<br/>Journal d'événements,<br/>concurrence optimiste"]
     db["db<br/>Client Drizzle<br/>(Neon ou PGlite)"]
   end
@@ -70,8 +71,9 @@ flowchart TB
   route --> server
   pages --> server
   server --> createapi
-  createapi --> system & realm & auth & http & realtime
+  createapi --> system & realm & dungeon & auth & http & realtime
   realm --> store & realtime & http
+  dungeon --> store & realtime & http
   realtime --> store & http
   http --> auth
   auth --> db
