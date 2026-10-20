@@ -9,3 +9,4 @@ un nouvel ADR est rédigé et l'ancien prend le statut « remplacé ».
 | [0001](0001-monolithe-modulaire.md) | Monolithe modulaire plutôt que microservices | Accepté |
 | [0002](0002-event-sourcing-village.md) | Event Sourcing pour le Village | Accepté |
 | [0003](0003-server-sent-events.md) | Server-Sent Events, alimentés par le journal, pour le temps réel | Accepté |
+| [0004](0004-manches-simultanees.md) | Manches simultanées et échéances paresseuses pour le Donjon | Accepté |
