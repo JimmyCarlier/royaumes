@@ -19,6 +19,12 @@ export const theme: Record<string, Look> = {
   sawmill: { glyph: '🪚', label: 'Scierie' },
   quarry: { glyph: '⛏️', label: 'Carrière' },
   mine: { glyph: '⚒️', label: 'Mine' },
+  dungeon: { glyph: '⚔️', label: 'Donjon' },
+  hero: { glyph: '🛡️', label: 'Héros' },
+  goblin: { glyph: '👺', label: 'Gobelin' },
+  skeleton: { glyph: '💀', label: 'Squelette' },
+  troll: { glyph: '👹', label: 'Troll' },
+  door: { glyph: '🚪', label: 'Porte' },
 }
 
 /** Apparence d'une entité ; une apparence neutre si l'entité n'est pas décrite. */

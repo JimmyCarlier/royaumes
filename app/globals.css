@@ -94,3 +94,12 @@ button.link { background: none; color: var(--accent); padding: 0; }
 .status { font-size: 0.85rem; color: var(--muted); }
 .status[data-status='open'] { color: var(--ok); }
 .status[data-status='reconnecting'] { color: var(--warn); }
+/* Écrans du Donjon. */
+.games, .log { list-style: none; padding: 0; margin: 0; display: grid; gap: 8px; }
+.games li { display: flex; justify-content: space-between; gap: 12px; }
+.heroes, .monsters { display: grid; gap: 8px; }
+.fighter { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+.fighter[data-down='true'] { opacity: 0.45; text-decoration: line-through; }
+.ok { font-size: 0.85rem; color: var(--ok); }
+.actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 12px; }
+.countdown { font-variant-numeric: tabular-nums; font-weight: 600; color: var(--accent); }

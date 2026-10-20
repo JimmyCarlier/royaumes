@@ -6,7 +6,10 @@ import { authClient } from '@/platform/auth/client'
 import { Entity } from './entity'
 
 /** Liens de navigation : chaque module ajouté au jeu y reçoit une entrée. */
-export const NAV = [{ href: '/village', kind: 'village', label: 'Village' }]
+export const NAV = [
+  { href: '/village', kind: 'village', label: 'Village' },
+  { href: '/dungeon', kind: 'dungeon', label: 'Donjon' },
+]
 
 /** Cadre de l'espace de jeu : navigation, nom du joueur et déconnexion. */
 export function AppShell({ userName, children }: { userName: string; children: ReactNode }) {
