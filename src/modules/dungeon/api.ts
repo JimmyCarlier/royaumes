@@ -2,7 +2,7 @@ import { Hono } from 'hono'
 import type { AppEnv } from '@/platform/http/types'
 import { validateJson } from '@/platform/http/validate'
 import type { DungeonService } from './application/dungeon-service'
-import { type GameError, SubmitActionInput } from './contracts'
+import { CreateGameInput, type GameError, SubmitActionInput } from './contracts'
 
 /** Code HTTP associé à chaque erreur métier. */
 const STATUS: Record<GameError['code'], 403 | 404 | 409 | 422> = {
@@ -31,9 +31,10 @@ export function createDungeonApi(service: DungeonService) {
       // Expéditions ouvertes.
       .get('/games', async (c) => c.json({ games: await service.listOpenGames() }))
 
-      // Ouverture d'une expédition : le joueur en devient l'hôte.
-      .post('/games', async (c) => {
-        const { gameId, result } = await service.create({ id: c.var.userId, name: c.var.userName })
+      // Ouverture d'une expédition, au niveau de difficulté choisi : le joueur en devient l'hôte.
+      .post('/games', validateJson(CreateGameInput), async (c) => {
+        const player = { id: c.var.userId, name: c.var.userName }
+        const { gameId, result } = await service.create(player, c.req.valid('json').difficulty)
         return result.ok
           ? c.json({ gameId, view: result.view }, 201)
           : c.json({ error: result.error }, STATUS[result.error.code])
@@ -50,6 +51,17 @@ export function createDungeonApi(service: DungeonService) {
           type: 'JoinGame',
           playerId: c.var.userId,
           name: c.var.userName,
+        })
+        return result.ok
+          ? c.json({ view: result.view })
+          : c.json({ error: result.error }, STATUS[result.error.code])
+      })
+
+      // Ajout d'un compagnon par l'hôte, pendant le salon.
+      .post('/games/:id/companion', async (c) => {
+        const result = await service.execute(c.req.param('id'), c.var.userId, {
+          type: 'AddCompanion',
+          playerId: c.var.userId,
         })
         return result.ok
           ? c.json({ view: result.view })

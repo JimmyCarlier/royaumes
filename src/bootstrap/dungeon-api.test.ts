@@ -98,6 +98,37 @@ describe('API du module Donjon', () => {
   })
 })
 
+describe('Niveaux de difficulté et compagnons', () => {
+  it('ouvre une expédition au niveau de difficulté choisi', async () => {
+    const api = await createTestApi()
+    const res = await api.post('/api/dungeon/games', { difficulty: 'hard' })
+    expect(res.status).toBe(201)
+    expect((await res.json()).view.difficulty).toBe('hard')
+  })
+
+  it('rejette un niveau de difficulté inconnu (400)', async () => {
+    const api = await createTestApi()
+    const res = await api.post('/api/dungeon/games', { difficulty: 'impossible' })
+    expect(res.status).toBe(400)
+  })
+
+  it("ne laisse que l'hôte ajouter un compagnon (403)", async () => {
+    const api = await createTestApi()
+    const gameId = await openGame(api, ['alice', 'bob'])
+
+    const refused = await api.post(`/api/dungeon/games/${gameId}/companion`, {}, 'bob')
+    expect(refused.status).toBe(403)
+
+    const added = await api.post(`/api/dungeon/games/${gameId}/companion`, {}, 'alice')
+    const { view } = (await added.json()) as { view: GameView }
+    expect(view.heroes.map((hero) => [hero.name, hero.companion])).toEqual([
+      ['alice', false],
+      ['bob', false],
+      ['Compagnon 1', true],
+    ])
+  })
+})
+
 describe("Contrôle d'accès à l'API du Donjon", () => {
   it('refuse toute requête anonyme (401)', async () => {
     const api = await createTestApi()

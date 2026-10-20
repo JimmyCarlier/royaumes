@@ -17,6 +17,8 @@ export function useCountdown(deadline: number | null, onExpired: () => void): nu
 
   useEffect(() => {
     if (deadline === null) return
+    // L'heure de référence est mise à jour dès que l'échéance change, sans attendre une seconde.
+    setNow(Date.now())
     const timer = setInterval(() => {
       const current = Date.now()
       setNow(current)
