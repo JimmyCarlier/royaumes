@@ -4,12 +4,15 @@
  * Tout le hasard du jeu est tiré ici, avec un générateur à graine, et enregistré
  * dans les événements : evolve (game.ts) ne fait qu'appliquer les résultats.
  */
+
+import { chooseCompanionAction } from './companion'
 import {
   BOSS,
   COMMON_MONSTERS,
   DAMAGE_SPREAD,
   type Difficulty,
   DUNGEON_LENGTH,
+  EXPLORE_MS,
   HEAL_AMOUNT,
   HERO,
   MAX_HEROES,
@@ -31,6 +34,7 @@ import {
   type Room,
   standingHeroes,
   standingMonsters,
+  standingPlayerHeroes,
 } from './game'
 import { MONSTER_STRATEGIES } from './monster-strategies'
 import { mix, pick, type Random, randomInt, seeded } from './random'
@@ -42,6 +46,7 @@ import { mix, pick, type Random, randomInt, seeded } from './random'
 export type GameCommand =
   | { type: 'CreateGame'; playerId: string; name: string; difficulty: Difficulty; seed: number }
   | { type: 'JoinGame'; playerId: string; name: string }
+  | { type: 'AddCompanion'; playerId: string }
   | { type: 'StartGame'; playerId: string }
   | { type: 'OpenDoor'; playerId: string }
   // round : la manche pour laquelle le joueur a choisi, telle qu'il l'a vue à l'écran.
@@ -127,10 +132,13 @@ const rollDamage = (random: Random, attack: number, spread: number) =>
 export function resolveRound(state: GameState, at: number): GameEvent[] {
   const random = seeded(mix(state.seed, 1, state.round))
 
-  // Un héros debout qui n'a rien choisi se défend.
+  // L'action de chaque compagnon est décidée maintenant, sur la situation du début de manche.
+  // Un héros incarné qui n'a rien choisi se défend.
   const actions: Record<string, Action> = {}
   for (const hero of standingHeroes(state)) {
-    actions[hero.id] = state.choices[hero.id] ?? { type: 'defend' }
+    actions[hero.id] = hero.companion
+      ? chooseCompanionAction({ heroes: standingHeroes(state), monsters: standingMonsters(state) })
+      : (state.choices[hero.id] ?? { type: 'defend' })
   }
 
   // Copies de travail, mises à jour effet après effet.
@@ -175,10 +183,13 @@ export function resolveRound(state: GameState, at: number): GameEvent[] {
     record({ kind: 'damage', source: monster.id, target: target.id, amount })
   }
 
-  // 4. Issue de la manche.
-  const heroesLeft = heroes.some((hero) => hero.hp > 0)
+  // 4. Issue de la manche. Sans joueur debout, l'expédition s'arrête, même si un compagnon
+  //    est encore debout : un compagnon ne poursuit pas l'expédition seul.
+  const playersLeft = heroes.some((hero) => hero.hp > 0 && !hero.companion)
   const monstersLeft = monsters.some((monster) => monster.hp > 0)
-  const combatGoesOn = heroesLeft && monstersLeft
+  const combatGoesOn = playersLeft && monstersLeft
+  const lastRoom = state.room === DUNGEON_LENGTH - 1
+  const explorationGoesOn = playersLeft && !monstersLeft && !lastRoom
   const events: GameEvent[] = [
     {
       type: 'RoundResolved',
@@ -187,13 +198,13 @@ export function resolveRound(state: GameState, at: number): GameEvent[] {
         actions,
         effects,
         nextDeadline: combatGoesOn ? at + ROUND_MS : null,
+        exploreDeadline: explorationGoesOn ? at + EXPLORE_MS : null,
         at,
       },
     },
   ]
-  const lastRoom = state.room === DUNGEON_LENGTH - 1
-  if (!heroesLeft || (!monstersLeft && lastRoom)) {
-    const result = heroesLeft ? 'won' : 'lost'
+  if (!playersLeft || (!monstersLeft && lastRoom)) {
+    const result = playersLeft ? 'won' : 'lost'
     const heroIds = state.heroes.map((hero) => hero.id)
     events.push({ type: 'GameEnded', data: { result, loot: state.loot, heroIds, at } })
   }
@@ -201,17 +212,34 @@ export function resolveRound(state: GameState, at: number): GameEvent[] {
 }
 
 /**
- * Échéances paresseuses : renvoie les événements de résolution de toutes les manches
- * dont l'échéance est passée à l'instant now. Chaque manche échue est résolue à l'instant
- * de son échéance, et non à l'instant now : le résultat ne dépend pas du moment du calcul.
+ * Ouverture de la porte suivante par un héros, à l'instant at. L'échéance enregistrée est
+ * celle de la première manche si la salle abrite des monstres, sinon celle du tour suivant.
+ */
+function enterNextRoom(state: GameState, heroId: string, at: number): GameEvent {
+  const room = state.room + 1
+  const fight = state.rooms[room].kind === 'monsters'
+  const deadline = at + (fight ? ROUND_MS : EXPLORE_MS)
+  return { type: 'RoomEntered', data: { heroId, room, deadline, at } }
+}
+
+/**
+ * Échéances paresseuses : renvoie les événements de toutes les échéances passées à l'instant
+ * now. Une manche échue est résolue ; un tour d'exploration échu ouvre la porte au nom du héros
+ * dont c'était le tour. Chaque échéance est traitée à son propre instant, et non à l'instant
+ * now : le résultat ne dépend pas du moment du calcul.
  */
 export function settle(state: GameState, now: number): GameEvent[] {
   const events: GameEvent[] = []
   let current = state
-  while (current.phase === 'combat' && current.deadline !== null && current.deadline <= now) {
-    const resolution = resolveRound(current, current.deadline)
-    events.push(...resolution)
-    current = resolution.reduce(evolve, current)
+  while (current.deadline !== null && current.deadline <= now) {
+    const at = current.deadline
+    let due: GameEvent[]
+    if (current.phase === 'combat') due = resolveRound(current, at)
+    else if (current.phase === 'exploring')
+      due = [enterNextRoom(current, current.heroes[current.turn].id, at)]
+    else break
+    events.push(...due)
+    current = due.reduce(evolve, current)
   }
   return events
 }
@@ -228,8 +256,9 @@ export function decide(state: GameState, command: GameCommand, now: number): Dec
   return decision.ok ? { ok: true, events: [...due, ...decision.events] } : decision
 }
 
+/** Un membre est un joueur qui incarne un héros de l'expédition ; un compagnon n'en est pas un. */
 const isMember = (state: GameState, playerId: string) =>
-  state.heroes.some((hero) => hero.id === playerId)
+  state.heroes.some((hero) => hero.id === playerId && !hero.companion)
 
 function decideCommand(state: GameState, command: GameCommand, now: number): Decision {
   if (command.type === 'CreateGame') {
@@ -263,6 +292,28 @@ function decideCommand(state: GameState, command: GameCommand, now: number): Dec
         ],
       }
 
+    case 'AddCompanion': {
+      if (state.phase !== 'lobby') return fail({ code: 'WRONG_PHASE', phase: state.phase })
+      if (command.playerId !== state.hostId) return fail({ code: 'NOT_HOST' })
+      if (state.heroes.length >= MAX_HEROES) return fail({ code: 'GAME_FULL' })
+      // Les compagnons sont numérotés dans l'ordre de leur arrivée.
+      const number = state.heroes.filter((hero) => hero.companion).length + 1
+      return {
+        ok: true,
+        events: [
+          {
+            type: 'CompanionAdded',
+            data: {
+              companionId: `companion-${number}`,
+              name: `Compagnon ${number}`,
+              hero: { ...HERO },
+              at: now,
+            },
+          },
+        ],
+      }
+    }
+
     case 'StartGame':
       if (state.phase !== 'lobby') return fail({ code: 'WRONG_PHASE', phase: state.phase })
       if (command.playerId !== state.hostId) return fail({ code: 'NOT_HOST' })
@@ -272,32 +323,26 @@ function decideCommand(state: GameState, command: GameCommand, now: number): Dec
         events: [
           {
             type: 'GameStarted',
-            data: { rooms: generateRooms(state.seed, state.heroes.length), at: now },
+            data: {
+              rooms: generateRooms(state.seed, state.heroes.length),
+              deadline: now + EXPLORE_MS,
+              at: now,
+            },
           },
         ],
       }
 
     case 'OpenDoor': {
-      // DETTE TECHNIQUE DT-006 (docs/qualite/dette-technique.md) : l'exploration n'a pas d'échéance ;
-      // un joueur absent lorsque vient son tour bloque toute l'expédition.
       if (state.phase !== 'exploring') return fail({ code: 'WRONG_PHASE', phase: state.phase })
       if (!isMember(state, command.playerId)) return fail({ code: 'NOT_A_MEMBER' })
       if (state.heroes[state.turn].id !== command.playerId) return fail({ code: 'NOT_YOUR_TURN' })
-      const room = state.room + 1
-      // Une salle occupée par des monstres ouvre la première manche, dont l'échéance est fixée ici.
-      const deadline = state.rooms[room].kind === 'monsters' ? now + ROUND_MS : null
-      return {
-        ok: true,
-        events: [
-          { type: 'RoomEntered', data: { heroId: command.playerId, room, deadline, at: now } },
-        ],
-      }
+      return { ok: true, events: [enterNextRoom(state, command.playerId, now)] }
     }
 
     case 'SubmitAction': {
       if (state.phase !== 'combat') return fail({ code: 'WRONG_PHASE', phase: state.phase })
       const hero = state.heroes.find((candidate) => candidate.id === command.playerId)
-      if (!hero) return fail({ code: 'NOT_A_MEMBER' })
+      if (!hero || hero.companion) return fail({ code: 'NOT_A_MEMBER' })
       if (hero.hp <= 0) return fail({ code: 'HERO_DOWN' })
       // Le joueur a choisi pour une manche qui a déjà été résolue.
       if (command.round !== state.round) return fail({ code: 'ROUND_OVER', round: state.round })
@@ -308,9 +353,12 @@ function decideCommand(state: GameState, command: GameCommand, now: number): Dec
         type: 'ActionSubmitted',
         data: { heroId: hero.id, round: state.round, action: command.action, at: now },
       }
-      // Si tous les héros debout ont choisi, la manche est résolue sans attendre l'échéance.
+      // Si tous les héros incarnés encore debout ont choisi, la manche est résolue sans attendre
+      // l'échéance : les compagnons, eux, décident au moment de la résolution.
       const after = evolve(state, submitted)
-      const everyoneReady = standingHeroes(after).every((h) => after.choices[h.id] !== undefined)
+      const everyoneReady = standingPlayerHeroes(after).every(
+        (h) => after.choices[h.id] !== undefined,
+      )
       return {
         ok: true,
         events: everyoneReady ? [submitted, ...resolveRound(after, now)] : [submitted],
@@ -318,7 +366,7 @@ function decideCommand(state: GameState, command: GameCommand, now: number): Dec
     }
 
     case 'CheckDeadline':
-      // Les manches échues ont déjà été résolues par decide : il n'y a rien d'autre à faire.
+      // Les échéances passées ont déjà été traitées par decide : il n'y a rien d'autre à faire.
       return { ok: true, events: [] }
   }
 }

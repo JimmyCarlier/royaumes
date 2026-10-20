@@ -1,27 +1,32 @@
 import { describe, expect, it } from 'vitest'
-import { DUNGEON_LENGTH, ROUND_MS } from './content'
+import { DUNGEON_LENGTH, EXPLORE_MS, ROUND_MS } from './content'
 import { evolve, type GameEvent, type GameState, initialState, type Room, replay } from './game'
 import { decide, type GameCommand, generateRooms, resolveRound } from './rules'
 
 // Instant et graine de référence.
 const T0 = Date.UTC(2026, 0, 1)
 const SEED = 42
+const hero = { hp: 30, attack: 6 }
 
 // Événements de départ : Alice ouvre l'expédition, Bob la rejoint.
 const created: GameEvent = {
   type: 'GameCreated',
-  data: { hostId: 'alice', hostName: 'Alice', hero: { hp: 30, attack: 6 }, seed: SEED, at: T0 },
+  data: { hostId: 'alice', hostName: 'Alice', hero, seed: SEED, at: T0 },
 }
 const bobJoined: GameEvent = {
   type: 'PlayerJoined',
-  data: { playerId: 'bob', name: 'Bob', hero: { hp: 30, attack: 6 }, at: T0 },
+  data: { playerId: 'bob', name: 'Bob', hero, at: T0 },
 }
 
 // Salles choisies par les tests : l'événement GameStarted porte les salles, qui ne sont
 // donc pas nécessairement tirées au sort. Les tests décident ainsi du contenu du donjon.
 const EMPTY: Room = { kind: 'empty' }
 const TROLL: Room = { kind: 'monsters', monsters: [{ kind: 'troll', hp: 20, attack: 7 }] }
-const started = (rooms: Room[]): GameEvent => ({ type: 'GameStarted', data: { rooms, at: T0 } })
+// L'échéance d'exploration est facultative : sans elle, l'événement est semblable à ceux du TD6.
+const started = (rooms: Room[], deadline?: number): GameEvent => ({
+  type: 'GameStarted',
+  data: { rooms, deadline, at: T0 },
+})
 const withFirstRoom = (first: Room): Room[] => [first, EMPTY, EMPTY, EMPTY, EMPTY, TROLL]
 const GOBLIN_FIRST = withFirstRoom({
   kind: 'monsters',
@@ -121,10 +126,13 @@ describe('Donjon - tirage des salles', () => {
     expect(generateRooms(SEED, 2)).not.toEqual(generateRooms(SEED + 1, 2))
   })
 
-  it("enregistre les salles tirées dans l'événement GameStarted", () => {
+  it("enregistre les salles tirées et l'échéance d'exploration dans l'événement GameStarted", () => {
     const { events } = play(replay([created]), { type: 'StartGame', playerId: 'alice' })
     expect(events).toEqual([
-      { type: 'GameStarted', data: { rooms: generateRooms(SEED, 1), at: T0 } },
+      {
+        type: 'GameStarted',
+        data: { rooms: generateRooms(SEED, 1), deadline: T0 + EXPLORE_MS, at: T0 },
+      },
     ])
   })
 })
@@ -268,5 +276,107 @@ describe("Donjon - fin de l'expédition", () => {
       action: { type: 'defend' },
     })
     expect(after.phase).toBe('lost')
+  })
+})
+
+describe('Donjon - compagnons', () => {
+  const addCompanion: GameCommand = { type: 'AddCompanion', playerId: 'alice' }
+
+  it("ne laisse que l'hôte ajouter un compagnon, et seulement dans le salon", () => {
+    const lobby = replay([created, bobJoined])
+    expect(decide(lobby, { type: 'AddCompanion', playerId: 'bob' }, T0)).toEqual({
+      ok: false,
+      error: { code: 'NOT_HOST' },
+    })
+    const heroes = play(lobby, addCompanion).state.heroes
+    expect(heroes.map((hero) => [hero.name, hero.companion])).toEqual([
+      ['Alice', false],
+      ['Bob', false],
+      ['Compagnon 1', true],
+    ])
+    const inProgress = replay([created, bobJoined, started(GOBLIN_FIRST)])
+    expect(decide(inProgress, addCompanion, T0)).toEqual({
+      ok: false,
+      error: { code: 'WRONG_PHASE', phase: 'exploring' },
+    })
+  })
+
+  it('compte les compagnons dans la limite de quatre héros', () => {
+    let state = replay([created])
+    for (let i = 0; i < 3; i++) state = play(state, addCompanion).state
+    const decision = decide(state, { type: 'JoinGame', playerId: 'bob', name: 'Bob' }, T0)
+    expect(decision).toEqual({ ok: false, error: { code: 'GAME_FULL' } })
+  })
+
+  it("ne donne jamais de tour d'exploration à un compagnon", () => {
+    // Ordre des héros : Alice, Compagnon 1, puis Bob.
+    let state = play(replay([created]), addCompanion).state
+    state = play(state, { type: 'JoinGame', playerId: 'bob', name: 'Bob' }).state
+    state = evolve(state, started(withFirstRoom(EMPTY)))
+    const next = play(state, { type: 'OpenDoor', playerId: 'alice' }).state
+    expect(next.heroes[next.turn].id).toBe('bob')
+  })
+
+  it("résout la manche dès que le joueur a choisi, avec l'action décidée par le compagnon", () => {
+    let state = play(replay([created]), addCompanion).state
+    state = evolve(state, started(GOBLIN_FIRST))
+    state = play(state, { type: 'OpenDoor', playerId: 'alice' }).state
+    const { events } = play(state, {
+      type: 'SubmitAction',
+      playerId: 'alice',
+      round: state.round,
+      action: { type: 'defend' },
+    })
+    const resolved = events.find((event) => event.type === 'RoundResolved')
+    if (resolved?.type !== 'RoundResolved') throw new Error('RoundResolved attendu')
+    expect(resolved.data.actions).toEqual({
+      alice: { type: 'defend' },
+      'companion-1': { type: 'attack', target: 'm0' },
+    })
+  })
+
+  it("perd l'expédition lorsque tous les joueurs sont tombés, même si un compagnon reste debout", () => {
+    let state = play(replay([created]), addCompanion).state
+    state = evolve(state, started([EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, TROLL]))
+    for (let door = 0; door < DUNGEON_LENGTH; door++) {
+      state = play(state, { type: 'OpenDoor', playerId: 'alice' }).state
+    }
+    // Événement fabriqué pour le test : Alice tombe, son compagnon reste debout.
+    state = evolve(state, {
+      type: 'RoundResolved',
+      data: {
+        round: state.round,
+        actions: {},
+        effects: [{ kind: 'damage', source: 'test', target: 'alice', amount: 30 }],
+        nextDeadline: T0 + ROUND_MS,
+        at: T0,
+      },
+    })
+    const after = play(state, { type: 'CheckDeadline' }, T0 + ROUND_MS + 1).state
+    expect(after.heroes.find((h) => h.companion)?.hp).toBeGreaterThan(0)
+    expect(after.phase).toBe('lost')
+  })
+})
+
+describe("Donjon - échéance d'exploration", () => {
+  it("ouvre la porte d'elle-même, au nom du héros dont c'était le tour", () => {
+    const state = replay([created, bobJoined, started(withFirstRoom(EMPTY), T0 + EXPLORE_MS)])
+    const { events, state: after } = play(state, { type: 'CheckDeadline' }, T0 + EXPLORE_MS + 1)
+    expect(events).toEqual([
+      {
+        type: 'RoomEntered',
+        data: { heroId: 'alice', room: 0, deadline: T0 + 2 * EXPLORE_MS, at: T0 + EXPLORE_MS },
+      },
+    ])
+    expect(after.heroes[after.turn].id).toBe('bob')
+  })
+
+  it("n'impose aucune échéance à une expédition lancée avant le TD7", () => {
+    // L'événement GameStarted ne porte pas d'échéance, comme ceux enregistrés au TD6.
+    const state = replay([created, bobJoined, started(withFirstRoom(EMPTY))])
+    expect(decide(state, { type: 'CheckDeadline' }, T0 + 10 * EXPLORE_MS)).toEqual({
+      ok: true,
+      events: [],
+    })
   })
 })

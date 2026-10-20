@@ -20,8 +20,14 @@ export const DUNGEON_LENGTH = 6
 /** Durée maximale d'une manche de combat, en millisecondes. */
 export const ROUND_MS = 30_000
 
+/** Durée maximale d'un tour d'exploration, en millisecondes : la porte s'ouvre ensuite d'elle-même. */
+export const EXPLORE_MS = 60_000
+
 /** Points de vie rendus par un soin. */
 export const HEAL_AMOUNT = 8
+
+/** Un compagnon soigne un héros dont les points de vie sont inférieurs à cette part du maximum. */
+export const COMPANION_HEAL_RATIO = 0.4
 
 /** Caractéristiques de départ de chaque héros. */
 export const HERO = { hp: 30, attack: 6 }

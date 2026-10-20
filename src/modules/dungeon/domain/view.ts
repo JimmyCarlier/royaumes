@@ -11,7 +11,9 @@ export interface HeroView {
   name: string
   hp: number
   maxHp: number
-  /** Vrai si le héros a choisi son action pour la manche en cours. */
+  /** Vrai pour un compagnon, piloté par l'intelligence artificielle. */
+  companion: boolean
+  /** Vrai si le héros a choisi son action ; toujours vrai pour un compagnon, qui n'attend pas. */
   ready: boolean
   /** Action choisie : connue du seul joueur qui incarne le héros, null pour les autres. */
   action: Action | null
@@ -26,7 +28,7 @@ export interface GameView {
   isHost: boolean
   isMember: boolean
   heroes: HeroView[]
-  /** Héros qui doit ouvrir la prochaine porte ; null hors exploration. */
+  /** Héros qui doit ouvrir la prochaine porte, avant l'échéance du tour ; null hors exploration. */
   turnHeroId: string | null
   /** Indice de la salle courante (-1 avant la première porte) et nombre total de salles. */
   room: number
@@ -57,13 +59,14 @@ export function toView(state: GameState, viewerId: string, now: number): GameVie
     difficulty: current.difficulty,
     hostId: current.hostId,
     isHost: current.hostId === viewerId,
-    isMember: current.heroes.some((hero) => hero.id === viewerId),
+    isMember: current.heroes.some((hero) => hero.id === viewerId && !hero.companion),
     heroes: current.heroes.map((hero) => ({
       id: hero.id,
       name: hero.name,
       hp: hero.hp,
       maxHp: hero.maxHp,
-      ready: inCombat && current.choices[hero.id] !== undefined,
+      companion: hero.companion,
+      ready: inCombat && (hero.companion || current.choices[hero.id] !== undefined),
       // Le choix des autres héros n'est jamais transmis avant la résolution de la manche.
       action: hero.id === viewerId ? (current.choices[hero.id] ?? null) : null,
     })),
