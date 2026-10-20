@@ -3,6 +3,7 @@ import { DEFAULT_DIFFICULTY, type Difficulty, MAX_HEROES } from '../domain/conte
 import { decide, type GameCommand, type GameError } from '../domain/rules'
 import { type GameView, toView } from '../domain/view'
 import type { GameRepository } from './game-repository'
+import type { OpenGamesReader } from './open-games-reader'
 
 /** Résultat d'une commande : la vue mise à jour pour le joueur, ou l'erreur métier. */
 export type CommandResult = { ok: true; view: GameView } | { ok: false; error: GameError }
@@ -23,9 +24,14 @@ export interface DungeonServiceOptions {
   newSeed?: () => number
 }
 
-/** Service applicatif du Donjon : orchestre le domaine et la persistance. */
+/**
+ * Service applicatif du Donjon : orchestre le domaine et la persistance.
+ * Les commandes passent par le modèle d'écriture (repo), la liste des expéditions ouvertes
+ * par un modèle de lecture (openGames).
+ */
 export function createDungeonService(
   repo: GameRepository,
+  openGames: OpenGamesReader,
   {
     clock = () => Date.now(),
     newId = () => crypto.randomUUID(),
@@ -75,7 +81,7 @@ export function createDungeonService(
 
   /** Expéditions qui peuvent encore être rejointes. */
   function listOpenGames() {
-    return repo.listOpenGames(clock())
+    return openGames.list(clock())
   }
 
   return { execute, create, getView, listOpenGames }

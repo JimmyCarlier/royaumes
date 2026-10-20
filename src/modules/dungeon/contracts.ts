@@ -10,9 +10,17 @@ import { DIFFICULTIES } from './domain/content'
 export type { Difficulty, MonsterKind } from './domain/content'
 export { DIFFICULTIES, MAX_HEROES, MONSTERS, ROUND_MS } from './domain/content'
 export type { Action, Effect, Monster, Phase, Room } from './domain/game'
-export type { OpenGame } from './domain/lobby'
 export type { GameError } from './domain/rules'
 export type { GameView, HeroView } from './domain/view'
+
+/** Expédition qui peut encore être rejointe, telle que la présente la liste des expéditions. */
+export interface OpenGame {
+  gameId: string
+  hostName: string
+  /** Nombre de héros, compagnons compris. */
+  heroCount: number
+  createdAt: number
+}
 
 /** Corps attendu pour ouvrir une expédition : le niveau de difficulté, facile par défaut. */
 export const CreateGameInput = z.object({

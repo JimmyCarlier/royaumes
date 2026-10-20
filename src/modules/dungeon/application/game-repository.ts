@@ -1,5 +1,4 @@
 import type { GameEvent, GameState } from '../domain/game'
-import type { OpenGame } from '../domain/lobby'
 
 /**
  * Port de persistance du Donjon, défini par la couche application.
@@ -14,7 +13,4 @@ export interface GameRepository {
    * Une ConcurrencyError est levée si d'autres événements ont été enregistrés depuis la lecture.
    */
   save(gameId: string, expectedVersion: number, events: GameEvent[]): Promise<void>
-
-  /** Liste les expéditions qui peuvent encore être rejointes à l'instant now. */
-  listOpenGames(now: number): Promise<OpenGame[]>
 }
