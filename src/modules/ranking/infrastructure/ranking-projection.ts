@@ -38,10 +38,13 @@ async function recordPlayer(tx: DbTransaction, gameId: string, playerId: string,
   await tx.insert(gamePlayers).values({ gameId, playerId }).onConflictDoNothing()
 }
 
-/** Projection du classement : met à jour les totaux des joueurs à partir du journal. */
+/**
+ * Projection du classement : met à jour les totaux des joueurs à partir du journal.
+ * Version 2 : ajout du meilleur butin.
+ */
 export const rankingProjection: Projection = {
   name: 'ranking',
-  version: 1,
+  version: 2,
   eventTypes: ['GameCreated', 'PlayerJoined', 'GameEnded', 'VillageFounded', 'BuildingUpgraded'],
 
   async apply(event, tx) {
@@ -72,6 +75,7 @@ export const rankingProjection: Projection = {
               gamesPlayed: sql`${players.gamesPlayed} + 1`,
               gamesWon: sql`${players.gamesWon} + ${won ? 1 : 0}`,
               gold: sql`${players.gold} + ${won ? data.loot : 0}`,
+              bestLoot: sql`greatest(${players.bestLoot}, ${won ? data.loot : 0})`,
             })
             .where(inArray(players.playerId, ids))
         }

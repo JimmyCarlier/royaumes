@@ -14,6 +14,8 @@ export const players = ranking.table('players', {
   gamesWon: integer('games_won').notNull().default(0),
   gold: integer('gold').notNull().default(0),
   upgrades: integer('upgrades').notNull().default(0),
+  /** Or rapporté par la meilleure expédition gagnée ; ajouté par la version 2 de la projection. */
+  bestLoot: integer('best_loot').notNull().default(0),
 })
 
 /**

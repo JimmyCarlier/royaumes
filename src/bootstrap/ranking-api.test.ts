@@ -37,6 +37,7 @@ describe('API du module Classement', () => {
         gamesWon: 0,
         gold: 0,
         upgrades: 1,
+        bestLoot: 0,
       },
     ])
   })

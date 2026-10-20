@@ -15,6 +15,8 @@ export interface RankingEntry {
   gold: number
   /** Nombre d'améliorations de bâtiments du village. */
   upgrades: number
+  /** Or rapporté par la meilleure expédition gagnée. */
+  bestLoot: number
 }
 
 /** Nombre de joueurs présentés par le classement. */

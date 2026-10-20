@@ -46,6 +46,7 @@ export function RankingScreen({ userId }: { userId: string }) {
                 <th>
                   <Entity kind="gold" />
                 </th>
+                <th>Meilleur butin</th>
                 <th>Améliorations</th>
               </tr>
             </thead>
@@ -60,6 +61,7 @@ export function RankingScreen({ userId }: { userId: string }) {
                   <td>{entry.gamesWon}</td>
                   <td>{entry.gamesPlayed}</td>
                   <td>{entry.gold}</td>
+                  <td>{entry.bestLoot}</td>
                   <td>{entry.upgrades}</td>
                 </tr>
               ))}
