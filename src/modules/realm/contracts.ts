@@ -24,3 +24,10 @@ export const FoundVillageInput = z.object({
 export const UpgradeBuildingInput = z.object({
   building: z.enum(BUILDINGS),
 })
+
+/**
+ * Nom du canal temps réel du village d'un joueur.
+ * Il est identique au nom du flux qui contient ses événements dans le journal :
+ * écouter ce canal, c'est recevoir les événements de ce flux.
+ */
+export const villageChannel = (userId: string) => `village-${userId}`

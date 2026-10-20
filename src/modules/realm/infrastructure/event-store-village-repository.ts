@@ -1,9 +1,10 @@
 import type { EventStore, NewEvent } from '@/platform/event-store/event-store'
 import type { VillageRepository } from '../application/village-repository'
+import { villageChannel } from '../contracts'
 import { replay, type VillageEvent } from '../domain/village'
 
-/** Nom du flux qui contient les événements du village d'un joueur. */
-export const villageStream = (userId: string) => `village-${userId}`
+/** Nom du flux qui contient les événements du village d'un joueur : celui de son canal. */
+const villageStream = villageChannel
 
 /**
  * Adaptateur du port VillageRepository fondé sur le journal d'événements.

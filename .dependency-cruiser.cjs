@@ -57,8 +57,8 @@ module.exports = {
       from: { path: '(^src/modules/[^/]+/ui\\.tsx$)|(^src/ui/)' },
       to: {
         path: '^src/(platform/|bootstrap/|modules/[^/]+/(api\\.ts|index\\.ts|application/|infrastructure/))',
-        // Seule exception : le client d'authentification, écrit pour le navigateur.
-        pathNot: '^src/platform/auth/client\\.ts$',
+        // Seules exceptions : les fichiers de la plateforme écrits pour le navigateur.
+        pathNot: ['^src/platform/auth/client\\.ts$', '^src/platform/realtime/use-channel\\.ts$'],
         dependencyTypesNot: ['type-only'],
       },
     },

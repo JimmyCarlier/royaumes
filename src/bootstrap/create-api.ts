@@ -33,7 +33,7 @@ export function createApi({ auth, store, ready, clock, realtime }: ApiDeps) {
   const realm = createRealmModule({ store, clock })
 
   // Règles d'accès aux canaux temps réel, déclarées par les modules.
-  const policies: ChannelPolicy[] = []
+  const policies: ChannelPolicy[] = [realm.channelPolicy]
 
   // 2. Application principale : toutes ses routes sont préfixées par /api.
   const app = new Hono<AppEnv>().basePath('/api')

@@ -4,8 +4,10 @@
  * importé depuis l'extérieur.
  */
 import type { EventStore } from '@/platform/event-store/event-store'
+import type { ChannelPolicy } from '@/platform/realtime/channel-policy'
 import { createRealmApi } from './api'
 import { createVillageService } from './application/village-service'
+import { villageChannel } from './contracts'
 import { createEventStoreVillageRepository } from './infrastructure/event-store-village-repository'
 
 export interface RealmModuleDeps {
@@ -15,11 +17,18 @@ export interface RealmModuleDeps {
   clock?: () => number
 }
 
-/** Fabrique du module : assemble l'adaptateur, le service et l'API. */
+/** Fabrique du module : assemble l'adaptateur, le service, l'API et la règle du canal. */
 export function createRealmModule({ store, clock }: RealmModuleDeps) {
   const repo = createEventStoreVillageRepository(store)
   const service = createVillageService(repo, clock)
-  return { api: createRealmApi(service) }
+
+  // Règle d'accès au canal temps réel : un joueur n'écoute que son propre village.
+  const channelPolicy: ChannelPolicy = {
+    prefix: 'village-',
+    canSubscribe: (channel, userId) => channel === villageChannel(userId),
+  }
+
+  return { api: createRealmApi(service), channelPolicy }
 }
 
 export type { RealmApi } from './api'

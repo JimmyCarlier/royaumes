@@ -1,6 +1,7 @@
 'use client'
 import { hc } from 'hono/client'
 import { useCallback, useEffect, useState } from 'react'
+import { useChannel } from '@/platform/realtime/use-channel'
 import { Entity } from '@/ui/entity'
 import type { RealmApi } from './api'
 import {
@@ -11,6 +12,7 @@ import {
   type Stock,
   stockAt,
   type VillageView,
+  villageChannel,
 } from './contracts'
 
 /** Client HTTP typé, déduit de la sous-application Hono du module. */
@@ -33,8 +35,15 @@ function canAfford(stock: Stock, cost: Partial<Stock> | null) {
   return !!cost && Object.entries(cost).every(([r, n]) => stock[r as keyof Stock] >= (n ?? 0))
 }
 
-/** Écran du Village : fondation, stock et bâtiments. */
-export function VillageScreen() {
+/** Libellé affiché pour chaque état de la connexion temps réel. */
+const STATUS_LABELS = {
+  connecting: 'Connexion...',
+  open: 'Temps réel connecté',
+  reconnecting: 'Reconnexion...',
+} as const
+
+/** Écran du Village : fondation, stock et bâtiments, mis à jour en temps réel. */
+export function VillageScreen({ userId }: { userId: string }) {
   // undefined : chargement en cours ; null : aucun village fondé.
   const [view, setView] = useState<VillageView | null | undefined>(undefined)
   const [now, setNow] = useState(() => Date.now())
@@ -49,6 +58,10 @@ export function VillageScreen() {
   useEffect(() => {
     refresh()
   }, [refresh])
+
+  // TEMPS RÉEL : chaque événement du village, y compris s'il provient d'un autre onglet
+  // ou d'un autre appareil, provoque une relecture de la vue.
+  const status = useChannel(villageChannel(userId), refresh)
 
   // Le stock est extrapolé localement deux fois par seconde, sans interroger le serveur.
   useEffect(() => {
@@ -75,9 +88,14 @@ export function VillageScreen() {
   }
 
   const title = (
-    <h1>
-      <Entity kind="village" /> {view?.name ?? 'Royaumes'}
-    </h1>
+    <div className="row" style={{ justifyContent: 'space-between' }}>
+      <h1>
+        <Entity kind="village" /> {view?.name ?? 'Royaumes'}
+      </h1>
+      <span className="status" data-status={status}>
+        {STATUS_LABELS[status]}
+      </span>
+    </div>
   )
 
   // Chargement en cours.
