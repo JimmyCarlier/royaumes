@@ -4,6 +4,13 @@
  * dans rules.ts : rééquilibrer le jeu ne demande de modifier qu'ici.
  */
 
+/** Niveaux de difficulté d'une expédition. « as const » permet d'en déduire un type union. */
+export const DIFFICULTIES = ['easy', 'hard'] as const
+export type Difficulty = (typeof DIFFICULTIES)[number]
+
+/** Niveau attribué aux expéditions enregistrées avant l'introduction des niveaux (TD7). */
+export const DEFAULT_DIFFICULTY: Difficulty = 'easy'
+
 /** Nombre maximal de héros dans une expédition. */
 export const MAX_HEROES = 4
 

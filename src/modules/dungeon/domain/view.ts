@@ -2,7 +2,7 @@
  * Vue filtrée d'une expédition : ce qu'un joueur donné a le droit de connaître.
  * L'API ne renvoie jamais l'état complet, seulement cette vue.
  */
-import { DUNGEON_LENGTH } from './content'
+import { type Difficulty, DUNGEON_LENGTH } from './content'
 import { type Action, evolve, type GameState, type Monster, type Phase, type Room } from './game'
 import { settle } from './rules'
 
@@ -19,6 +19,8 @@ export interface HeroView {
 
 export interface GameView {
   phase: Phase
+  /** Niveau de difficulté, choisi par l'hôte : il n'a rien de secret. */
+  difficulty: Difficulty
   hostId: string
   /** Vrai si le joueur qui consulte la vue est l'hôte, ou un membre de l'expédition. */
   isHost: boolean
@@ -52,6 +54,7 @@ export function toView(state: GameState, viewerId: string, now: number): GameVie
   // ne figurent pas dans la vue : ce qui n'est pas transmis ne peut pas être lu.
   return {
     phase: current.phase,
+    difficulty: current.difficulty,
     hostId: current.hostId,
     isHost: current.hostId === viewerId,
     isMember: current.heroes.some((hero) => hero.id === viewerId),

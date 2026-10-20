@@ -45,11 +45,23 @@ const eventTypes = (events: GameEvent[]) => events.map((event) => event.type)
 
 describe('Donjon - salon', () => {
   it("ouvre une expédition dont l'hôte est le premier héros", () => {
-    const command: GameCommand = { type: 'CreateGame', playerId: 'alice', name: 'Alice', seed: 1 }
+    const command: GameCommand = {
+      type: 'CreateGame',
+      playerId: 'alice',
+      name: 'Alice',
+      difficulty: 'hard',
+      seed: 1,
+    }
     const { state } = play(initialState, command)
     expect(state.phase).toBe('lobby')
+    expect(state.difficulty).toBe('hard')
     expect(state.heroes.map((hero) => hero.name)).toEqual(['Alice'])
     expect(state.heroes[0]).toMatchObject({ hp: 30, maxHp: 30, attack: 6 })
+  })
+
+  it('lit comme facile une expédition enregistrée sans niveau de difficulté', () => {
+    // L'événement created, comme ceux enregistrés au TD6, ne porte pas de niveau de difficulté.
+    expect(replay([created]).difficulty).toBe('easy')
   })
 
   it("refuse qu'un joueur rejoigne deux fois la même expédition", () => {

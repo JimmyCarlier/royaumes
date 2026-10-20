@@ -1,5 +1,5 @@
 import { withOptimisticRetry } from '@/platform/event-store/retry'
-import { MAX_HEROES } from '../domain/content'
+import { DEFAULT_DIFFICULTY, type Difficulty, MAX_HEROES } from '../domain/content'
 import { decide, type GameCommand, type GameError } from '../domain/rules'
 import { type GameView, toView } from '../domain/view'
 import type { GameRepository } from './game-repository'
@@ -51,13 +51,17 @@ export function createDungeonService(
     }, MAX_ATTEMPTS)
   }
 
-  /** Ouvre une nouvelle expédition, dont le joueur devient l'hôte. */
-  async function create(player: { id: string; name: string }) {
+  /** Ouvre une nouvelle expédition, dont le joueur devient l'hôte, au niveau de difficulté choisi. */
+  async function create(
+    player: { id: string; name: string },
+    difficulty: Difficulty = DEFAULT_DIFFICULTY,
+  ) {
     const gameId = newId()
     const result = await execute(gameId, player.id, {
       type: 'CreateGame',
       playerId: player.id,
       name: player.name,
+      difficulty,
       seed: newSeed(),
     })
     return { gameId, result }
