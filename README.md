@@ -70,16 +70,22 @@ Un module n'est accessible depuis l'extérieur que par ses entrées publiques : 
 | `system` | Route de santé | `/api/system` |
 | `realm` | Village : fondation, production de ressources, amélioration des bâtiments | `/api/realm` |
 | `dungeon` | Donjon : expéditions de un à quatre héros, compagnons pilotés par l'ordinateur, deux niveaux de difficulté, combats en manches simultanées | `/api/dungeon` |
+| `ranking` | Classement des joueurs, construit à partir des événements du Village et du Donjon | `/api/ranking` |
 
 ## Temps réel
 
 Les changements sont diffusés aux navigateurs par des Server-Sent Events, à l'adresse
-`/api/stream/<canal>`. Chaque canal correspond à un flux du journal d'événements ; il n'est
-accessible qu'aux joueurs connectés autorisés par la règle du module concerné. Le canal
-`village-<joueur>` n'est ainsi accessible qu'au propriétaire du village, et le canal
-`dungeon-<expédition>` aux seuls membres de l'expédition. Le canal d'une expédition est
-discret : il ne transmet que le type et la version des événements, et chaque navigateur
-relit sa propre vue, filtrée par le serveur.
+`/api/stream/<canal>`. Chaque canal n'est accessible qu'aux joueurs connectés autorisés par
+la règle du module concerné. Le canal `village-<joueur>` n'est ainsi accessible qu'au
+propriétaire du village, et le canal `dungeon-<expédition>` aux seuls membres de l'expédition.
+
+La plupart des canaux correspondent à un flux du journal d'événements. Le canal `ranking`
+est un canal global : il suit, dans tout le journal, les événements qui modifient le
+classement, et ne transmet que ceux qui sont enregistrés après son ouverture.
+
+Les canaux du Donjon et du Classement sont discrets : ils ne transmettent que la position,
+le type et la version des événements, et chaque navigateur relit sa propre vue, filtrée
+par le serveur.
 
 Un flux se ferme de lui-même au bout de 240 secondes, et le navigateur s'y reconnecte
 sans perte d'événement. En développement, la variable `STREAM_MAX_SECONDS` permet de
@@ -92,6 +98,11 @@ En développement, la base PostgreSQL est fournie par PGlite et conservée dans 
 démarrage. Pour repartir d'une base vide, arrêtez le serveur et supprimez le répertoire `.data/`.
 
 Les tests utilisent une base PGlite en mémoire, recréée pour chaque fichier de test.
+
+Le classement et la liste des expéditions ouvertes sont des modèles de lecture, tenus à jour
+par des projections à partir du journal d'événements (ADR 0006). Chaque projection est
+rattrapée à la consultation, et reconstruite automatiquement lorsque sa version change :
+une modification qui change le contenu de ses tables doit donc augmenter sa version.
 
 En production, la base est hébergée par Neon. Les migrations y sont appliquées lors de
 chaque déploiement, après les contrôles et avant la construction de l'application.
@@ -128,5 +139,9 @@ de joueurs du projet, est décrit dans l'ADR 0003.
 Une échéance du Donjon, de manche ou d'exploration, n'est enregistrée qu'à la commande
 suivante d'un membre de l'expédition ; toute lecture l'affiche néanmoins comme passée
 (ADR 0004). Les expéditions de quatre joueurs restent faciles, même au niveau difficile :
-le script de simulation permet de le mesurer. Les autres limites connues, dont la liste
-des expéditions ouvertes, sont recensées dans le registre de la dette technique.
+le script de simulation permet de le mesurer.
+
+Le classement et la liste des expéditions ouvertes peuvent présenter, pendant quelques
+secondes, un état qui ne tient pas encore compte des derniers événements. La reconstruction
+d'une projection a lieu pendant une consultation : sa durée croît avec la taille du journal
+(ADR 0006). Les autres limites connues sont recensées dans le registre de la dette technique.
