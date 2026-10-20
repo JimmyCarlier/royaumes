@@ -13,6 +13,8 @@ export default defineConfig({
     // sont lancés par la construction Vercel, où NODE_ENV vaut « production ». Ils ne
     // dépendent ainsi d'aucune variable de l'environnement de production.
     env: { NODE_ENV: 'test' },
-    testTimeout: 15000, // 10 secondes, pour les tests qui font des requêtes HTTP
+    // Chaque fichier de test de l'API démarre sa propre base PGlite : sur un poste chargé,
+    // ce démarrage peut dépasser le délai par défaut de cinq secondes.
+    testTimeout: 20_000,
   },
 })
