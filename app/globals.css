@@ -118,3 +118,5 @@ input.amount { width: 5em; }
 .messages { list-style: none; padding: 0; margin: 0 0 12px; display: grid; gap: 6px; max-height: 60vh; overflow-y: auto; overflow-wrap: anywhere; }
 .messages li[data-mine] strong { color: var(--accent); }
 .presence { list-style: none; padding: 0; margin: 0; display: grid; gap: 4px; }
+/* Mes données : un lien présenté comme un bouton */
+a.button { display: inline-block; padding: 8px 14px; border-radius: 8px; background: var(--accent); color: white; text-decoration: none; }

@@ -7,6 +7,12 @@
 /** Longueur maximale d'un message, en caractères. */
 export const MESSAGE_MAX_LENGTH = 280
 
+/** Durée de conservation d'un message : trente jours, en millisecondes. */
+export const RETENTION_MS = 30 * 24 * 60 * 60_000
+
+/** Instant avant lequel un message a dépassé sa durée de conservation. */
+export const expiredBefore = (now: number) => now - RETENTION_MS
+
 /** Nombre maximal de messages d'un même joueur pendant la fenêtre de limitation. */
 export const RATE_LIMIT = { messages: 5, windowMs: 30_000 }
 

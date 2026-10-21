@@ -5,13 +5,16 @@ import { createRankingModule } from '@/modules/ranking'
 import { createRealmModule } from '@/modules/realm'
 import { createSystemModule } from '@/modules/system'
 import { createTavernModule } from '@/modules/tavern'
+import { createIdentityPersonalData } from '@/platform/auth/personal-data'
 import type { AuthPort } from '@/platform/auth/port'
+import { createCronApi } from '@/platform/cron/cron-api'
 import type { Db } from '@/platform/db/client'
 import type { EventStore } from '@/platform/event-store/event-store'
 import { requireUser } from '@/platform/http/require-user'
 import type { AppEnv } from '@/platform/http/types'
-import { createDispatchApi } from '@/platform/outbox/dispatch-api'
 import { createDispatcher, type DispatcherOptions } from '@/platform/outbox/outbox'
+import { createPrivacyService } from '@/platform/privacy/privacy'
+import { createPrivacyApi } from '@/platform/privacy/privacy-api'
 import { createProjectionRunner } from '@/platform/projection/projection'
 import type { ChannelPolicy } from '@/platform/realtime/channel-policy'
 import { createRealtimeApi, type RealtimeOptions } from '@/platform/realtime/stream-api'
@@ -72,6 +75,21 @@ export function createApi({
 
   const tavern = createTavernModule({ db, clock })
 
+  // Droits des joueurs : chaque module fournit ses données personnelles. L'identité vient
+  // en dernier : tant qu'elle n'est pas effacée, le joueur peut relancer un effacement interrompu.
+  const privacy = createPrivacyService(
+    db,
+    [
+      realm.personalData,
+      dungeon.personalData,
+      market.personalData,
+      ranking.personalData,
+      tavern.personalData,
+      createIdentityPersonalData(db),
+    ],
+    clock,
+  )
+
   // Gestionnaires de messages, déclarés par les modules et confiés au distributeur.
   dispatcher.register(realm.handlers)
   dispatcher.register(market.handlers)
@@ -109,9 +127,22 @@ export function createApi({
   //    entièrement traitées par l'adaptateur d'authentification.
   app.on(['GET', 'POST'], '/auth/*', (c) => auth.handler(c.req.raw))
 
-  // Distribution planifiée de la boîte d'envoi : réservée à la tâche planifiée de Vercel,
-  // qui s'authentifie par un secret, et non par une session de joueur.
-  app.route('/outbox', createDispatchApi(dispatcher, cronSecret))
+  // Tâches quotidiennes : réservées à la tâche planifiée de Vercel, qui s'authentifie
+  // par un secret, et non par une session de joueur.
+  app.route(
+    '/cron',
+    createCronApi(
+      {
+        // Distribution des messages restés en attente dans la boîte d'envoi.
+        // DETTE TECHNIQUE DT-007 (docs/qualite/dette-technique.md) : les messages abandonnés
+        // sont seulement comptés ; aucun outil ne permet de les examiner ni de les relancer.
+        outbox: async () => ({ ...(await dispatcher.dispatch()), ...(await dispatcher.status()) }),
+        // Durée de conservation des données de la Taverne.
+        tavern: tavern.dailyTask,
+      },
+      cronSecret,
+    ),
+  )
 
   // 6. Routes réservées aux joueurs connectés : toute requête anonyme est refusée (401).
   //    Chaque nouveau module dont les routes sont réservées aux joueurs est ajouté ici.
@@ -120,6 +151,8 @@ export function createApi({
   app.use('/ranking/*', requireUser(auth))
   app.use('/market/*', requireUser(auth))
   app.use('/tavern/*', requireUser(auth))
+  app.use('/account', requireUser(auth))
+  app.use('/account/*', requireUser(auth))
   app.use('/stream/*', requireUser(auth))
 
   // 7. Montage des sous-applications : chaque module reçoit son propre préfixe.
@@ -131,6 +164,7 @@ export function createApi({
     .route('/ranking', ranking.api)
     .route('/market', market.api)
     .route('/tavern', tavern.api)
+    .route('/account', createPrivacyApi(privacy))
     .route('/stream', createRealtimeApi({ store, policies, ...realtime }))
 }
 

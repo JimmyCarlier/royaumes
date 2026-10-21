@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, gt, gte, max } from 'drizzle-orm'
+import { and, asc, desc, eq, gt, gte, lt, max } from 'drizzle-orm'
 import type { Db } from '@/platform/db/client'
 import type { MessageRepository } from '../application/message-repository'
 import { messages } from './schema'
@@ -37,6 +37,14 @@ export function createDrizzleMessageRepository(db: Db): MessageRepository {
         .from(messages)
         .where(and(eq(messages.authorId, authorId), gte(messages.postedAt, since)))
       return rows.map((row) => row.postedAt)
+    },
+
+    async removeOlderThan(before) {
+      const removed = await db
+        .delete(messages)
+        .where(lt(messages.postedAt, before))
+        .returning({ id: messages.id })
+      return removed.length
     },
   }
 }

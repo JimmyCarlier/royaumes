@@ -18,4 +18,6 @@ export interface MessageRepository {
   lastId(): Promise<number>
   /** Dates des messages d'un auteur publiés depuis l'instant since. */
   postedSince(authorId: string, since: number): Promise<number[]>
+  /** Supprime les messages publiés avant l'instant before ; renvoie leur nombre. */
+  removeOlderThan(before: number): Promise<number>
 }

@@ -1,7 +1,6 @@
 import { beforeEach, describe, expect, it } from 'vitest'
 import { createTestDatabase, type Db } from '../db/client'
 import { ConcurrencyError, createEventStore, type EventStore } from '../event-store/event-store'
-import { createDispatchApi } from './dispatch-api'
 import { createDispatcher, type Message } from './outbox'
 import { outbox } from './schema'
 
@@ -167,27 +166,5 @@ describe("Boîte d'envoi : échecs", () => {
     expect(await dispatcher.dispatch()).toEqual({ delivered: 0, failed: 1 })
     const [row] = await db.select().from(outbox)
     expect(row.lastError).toBe('Aucun gestionnaire pour le sujet test.ping')
-  })
-})
-
-describe('Distribution planifiée', () => {
-  it('refuse une requête sans le secret attendu (401)', async () => {
-    const api = createDispatchApi(createDispatcher(db), 'secret')
-    expect((await api.request('/dispatch')).status).toBe(401)
-    const wrong = await api.request('/dispatch', { headers: { authorization: 'Bearer autre' } })
-    expect(wrong.status).toBe(401)
-    // Sans secret configuré, la route est fermée, même pour une requête sans en-tête.
-    const closed = createDispatchApi(createDispatcher(db), undefined)
-    expect((await closed.request('/dispatch')).status).toBe(401)
-  })
-
-  it('distribue les messages en attente à la demande de la tâche planifiée', async () => {
-    const dispatcher = createDispatcher(db)
-    dispatcher.register({ 'test.ping': async () => {} })
-    await store.append('s-1', 0, [{ type: 'A', data: {} }], [ping(1)])
-
-    const api = createDispatchApi(dispatcher, 'secret')
-    const res = await api.request('/dispatch', { headers: { authorization: 'Bearer secret' } })
-    expect(await res.json()).toEqual({ delivered: 1, failed: 0, pending: 0, abandoned: 0 })
   })
 })

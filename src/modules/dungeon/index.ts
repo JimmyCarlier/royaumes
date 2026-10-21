@@ -12,6 +12,7 @@ import { createDungeonService } from './application/dungeon-service'
 import { GAME_CHANNEL_PREFIX } from './contracts'
 import { createDrizzleOpenGamesReader } from './infrastructure/drizzle-open-games-reader'
 import { createEventStoreGameRepository } from './infrastructure/event-store-game-repository'
+import { createDungeonPersonalData } from './personal-data'
 
 export interface DungeonModuleDeps {
   /** Journal d'événements de la plateforme, fourni par la racine de composition. */
@@ -43,7 +44,11 @@ export function createDungeonModule({ store, db, projections, clock }: DungeonMo
     },
   }
 
-  return { api: createDungeonApi(service), channelPolicy }
+  return {
+    api: createDungeonApi(service),
+    channelPolicy,
+    personalData: createDungeonPersonalData(store, db),
+  }
 }
 
 export type { DungeonApi } from './api'

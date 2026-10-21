@@ -71,6 +71,13 @@
       "when": 1792570587626,
       "tag": "0009_presence",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1792571432918,
+      "tag": "0010_registre_effacements",
+      "breakpoints": true
     }
   ]
 }

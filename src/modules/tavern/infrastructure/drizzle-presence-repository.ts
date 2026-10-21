@@ -22,7 +22,11 @@ export function createDrizzlePresenceRepository(db: Db): PresenceRepository {
     },
 
     async removeStale(before) {
-      await db.delete(presence).where(lt(presence.lastSeen, before))
+      const removed = await db
+        .delete(presence)
+        .where(lt(presence.lastSeen, before))
+        .returning({ id: presence.playerId })
+      return removed.length
     },
 
     list() {

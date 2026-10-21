@@ -6,8 +6,11 @@ export interface PresenceRepository {
   touch(player: PresentPlayer, at: number): Promise<void>
   /** Supprime la ligne d'un joueur. */
   remove(playerId: string): Promise<void>
-  /** Supprime les lignes des joueurs dont le dernier signal est antérieur à l'instant before. */
-  removeStale(before: number): Promise<void>
+  /**
+   * Supprime les lignes des joueurs dont le dernier signal est antérieur à l'instant before ;
+   * renvoie leur nombre.
+   */
+  removeStale(before: number): Promise<number>
   /** Joueurs présents, par ordre alphabétique. */
   list(): Promise<PresentPlayer[]>
 }
