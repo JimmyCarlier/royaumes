@@ -1,3 +1,17 @@
+import type { StoredEvent } from '../event-store/event-store'
+
+/**
+ * Source d'un canal qui ne lit pas le journal, fournie par le module qui le déclare.
+ * Ses éléments sont présentés sous la forme d'événements, identifiés par leur position,
+ * afin que l'interface les reçoive comme ceux des autres canaux.
+ */
+export interface ChannelSource {
+  /** Éléments postérieurs à une position, dans l'ordre croissant des positions. */
+  read(after: number): Promise<StoredEvent[]>
+  /** Position de départ d'un abonné qui n'en fournit aucune. */
+  start(): Promise<number>
+}
+
 /**
  * Règle d'accès aux canaux temps réel d'un module.
  * Chaque module déclare qui a le droit d'écouter ses canaux ; la plateforme, qui ne connaît
@@ -19,6 +33,11 @@ export interface ChannelPolicy {
    * par leur version, et il ne transmet que les événements postérieurs à son ouverture.
    */
   global?: { types: string[] }
+  /**
+   * Canal alimenté par une source propre au module, et non par le journal : par exemple
+   * une table, pour un module qui n'enregistre pas d'événements.
+   */
+  source?: ChannelSource
 }
 
 /**

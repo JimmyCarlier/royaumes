@@ -57,6 +57,13 @@
       "when": 1792567660673,
       "tag": "0007_marche",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1792570391928,
+      "tag": "0008_taverne",
+      "breakpoints": true
     }
   ]
 }

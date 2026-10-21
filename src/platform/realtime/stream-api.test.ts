@@ -23,10 +23,33 @@ const globalPolicy: ChannelPolicy = {
   global: { types: ['A'] },
 }
 
+// Règle de test d'un canal à source propre : « table » lit une liste en mémoire, qui tient
+// lieu de table d'un module, et non le journal.
+const rows: { id: number; text: string }[] = []
+const tablePolicy: ChannelPolicy = {
+  prefix: 'table',
+  canSubscribe: (channel) => channel === 'table',
+  source: {
+    read: async (after) =>
+      rows
+        .filter((row) => row.id > after)
+        .map((row) => ({
+          position: row.id,
+          stream: 'table',
+          version: row.id,
+          type: 'RowAdded',
+          data: { text: row.text },
+          occurredAt: new Date(),
+        })),
+    start: async () => rows.at(-1)?.id ?? 0,
+  },
+}
+
 let store: EventStore
 let app: Hono<AppEnv>
 
 beforeEach(async () => {
+  rows.length = 0
   store = createEventStore(await createTestDatabase())
   // Application minimale : le joueur est lu dans un en-tête, et les flux sont très courts.
   app = new Hono<AppEnv>()
@@ -38,7 +61,7 @@ beforeEach(async () => {
       '/stream',
       createRealtimeApi({
         store,
-        policies: [policy, secretPolicy, globalPolicy],
+        policies: [policy, secretPolicy, globalPolicy, tablePolicy],
         pollMs: 20,
         maxStreamMs: 150,
       }),
@@ -168,5 +191,18 @@ describe('Canal global', () => {
     const { body } = await readStream('/stream/all', { 'last-event-id': '1' })
 
     expect(eventIds(body)).toEqual(['3'])
+  })
+})
+
+describe('Canal à source propre', () => {
+  it('transmet les éléments à venir de la source fournie par le module, avec leurs données', async () => {
+    rows.push({ id: 1, text: 'avant' })
+    const reading = readStream('/stream/table')
+    await new Promise((resolve) => setTimeout(resolve, 50))
+    rows.push({ id: 2, text: 'pendant' })
+
+    const { body } = await reading
+    expect(eventIds(body)).toEqual(['2'])
+    expect(body).toContain('"text":"pendant"')
   })
 })

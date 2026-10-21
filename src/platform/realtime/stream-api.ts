@@ -2,7 +2,7 @@ import { Hono } from 'hono'
 import { streamSSE } from 'hono/streaming'
 import type { EventStore, StoredEvent } from '../event-store/event-store'
 import type { AppEnv } from '../http/types'
-import { authorize, type ChannelPolicy } from './channel-policy'
+import { authorize, type ChannelPolicy, type ChannelSource } from './channel-policy'
 
 export interface RealtimeOptions {
   /** Journal d'événements : un canal correspond à un flux du journal, ou à tout le journal. */
@@ -37,22 +37,23 @@ function present(event: StoredEvent, policy: ChannelPolicy) {
   }
 }
 
-/** Source des événements d'un canal : comment les lire, et comment les identifier. */
-interface ChannelSource {
-  /** Événements postérieurs à un identifiant, dans l'ordre. */
-  read(after: number): Promise<StoredEvent[]>
+/** Source des événements d'un canal, complétée par la manière de les identifier. */
+interface IdentifiedSource extends ChannelSource {
   /** Identifiant d'un événement, renvoyé par le navigateur dans Last-Event-ID. */
   idOf(event: StoredEvent): number
-  /** Identifiant de départ, lorsque le navigateur n'en fournit aucun. */
-  start(): Promise<number>
 }
 
 /**
  * Un canal ordinaire est un flux du journal, dont les événements sont identifiés par leur
  * version, et transmis depuis le début. Un canal global suit tout le journal : ses événements
- * sont identifiés par leur position, et seuls les événements à venir sont transmis.
+ * sont identifiés par leur position, et seuls les événements à venir sont transmis. Un canal
+ * doté d'une source propre lit cette source, et identifie ses éléments par leur position.
  */
-function sourceOf(store: EventStore, channel: string, policy: ChannelPolicy): ChannelSource {
+function sourceOf(store: EventStore, channel: string, policy: ChannelPolicy): IdentifiedSource {
+  if (policy.source) {
+    const source = policy.source
+    return { read: source.read, start: source.start, idOf: (event) => event.position }
+  }
   const global = policy.global
   if (global) {
     return {
@@ -69,7 +70,7 @@ function sourceOf(store: EventStore, channel: string, policy: ChannelPolicy): Ch
 }
 
 /** Identifiant de reprise fourni par le navigateur (en-tête ou paramètre), ou celui de départ. */
-async function startFrom(given: string | undefined, source: ChannelSource) {
+async function startFrom(given: string | undefined, source: IdentifiedSource) {
   return given === undefined ? source.start() : Number(given) || 0
 }
 
