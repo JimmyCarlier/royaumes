@@ -50,12 +50,17 @@ export function createVillageServiceApp({ db, secret, appUrl, clock, fetch }: Vi
 
       // Boîte de réception : messages de la saga du Marché. Les réponses produites sont
       // distribuées aussitôt, c'est-à-dire transmises à l'application.
+      // DETTE TECHNIQUE (docs/qualite/dette-technique.md, service Village) : la boîte d'envoi
+      // du service n'est distribuée qu'à la réception d'un message ; une réponse qui n'a pu
+      // être transmise attend le message suivant.
       .route(
         '/',
         createInboxApi(dispatcher, secret, () => dispatcher.dispatch()),
       )
 
       // Flux d'événements publié : les événements du Village postérieurs à une position.
+      // DETTE TECHNIQUE (docs/qualite/dette-technique.md, service Village) : le flux est
+      // renvoyé en une seule réponse, sans pagination.
       .get('/events', async (c) => {
         const after = Number(c.req.query('after') ?? 0) || 0
         const events = await store.readAll({
