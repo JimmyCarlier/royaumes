@@ -1,9 +1,6 @@
-import { headers } from 'next/headers'
-import { currentUser } from '@/bootstrap/server'
-import { TavernScreen } from '@/modules/tavern/ui'
+import { redirect } from 'next/navigation'
 
-/** Page de la Taverne. Les messages du joueur connecté y sont mis en évidence. */
-export default async function TavernPage() {
-  const user = await currentUser(await headers())
-  return <TavernScreen userId={user?.id ?? ''} />
+/** Conserve l'ancienne adresse française de la page. */
+export default function TavernePage() {
+  redirect('/tavern')
 }

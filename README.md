@@ -72,6 +72,7 @@ Un module n'est accessible depuis l'extérieur que par ses entrées publiques : 
 | `dungeon` | Donjon : expéditions de un à quatre héros, compagnons pilotés par l'ordinateur, deux niveaux de difficulté, combats en manches simultanées | `/api/dungeon` |
 | `ranking` | Classement des joueurs, construit à partir des événements du Village et du Donjon | `/api/ranking` |
 | `market` | Marché : échanges de ressources entre joueurs, par une saga orchestrée | `/api/market` |
+| `tavern` | Taverne : salon de discussion commun et présence des joueurs, sans Event Sourcing | `/api/tavern` |
 
 ## Temps réel
 
@@ -84,6 +85,9 @@ La plupart des canaux correspondent à un flux du journal d'événements. Les ca
 et `market` sont des canaux globaux : ils suivent, dans tout le journal, les événements qui
 modifient le classement ou la liste des offres, et ne transmettent que ceux qui sont
 enregistrés après leur ouverture.
+
+Le canal `tavern` ne lit pas le journal, mais la table des messages de la Taverne : il
+transmet chaque nouveau message, avec son contenu, à tous les joueurs connectés.
 
 Les canaux du Donjon, du Classement et du Marché sont discrets : ils ne transmettent que la position,
 le type et la version des événements, et chaque navigateur relit sa propre vue, filtrée
@@ -99,8 +103,23 @@ Une opération qui modifie les données de plusieurs modules, comme un échange 
 une saga (ADR 0007) : chaque étape est une transaction locale à un module, et les modules
 communiquent par des messages enregistrés dans la boîte d'envoi (`platform.outbox`), dans la
 même transaction que leurs événements. Les messages sont distribués après chaque commande et
-chaque consultation du Marché, et chaque jour par une tâche planifiée de Vercel. Leur livraison
+chaque consultation du Marché, et chaque jour par la tâche planifiée `/api/cron/daily`. Leur livraison
 est garantie au moins une fois : les gestionnaires de messages sont idempotents.
+
+## Données personnelles
+
+Le jeu traite des données personnelles, recensées dans le
+[registre des traitements](docs/rgpd/registre-traitements.md). Chaque joueur peut, depuis la
+page « Mes données » :
+
+- télécharger l'ensemble de ses données au format JSON (`GET /api/account/export`) ;
+- supprimer son compte (`DELETE /api/account`) : ses données sont supprimées des tables de
+  tous les modules, et son nom est remplacé par une mention neutre dans le journal
+  d'événements (ADR 0008). Chaque effacement est consigné dans `platform.erasures`.
+
+Les messages de la Taverne sont conservés trente jours, et la présence d'un joueur deux
+minutes après son dernier signal. Ces durées sont appliquées à chaque lecture, et chaque jour
+par la tâche planifiée `/api/cron/daily`.
 
 ## Base de données
 
@@ -127,7 +146,7 @@ déclenche un déploiement, qui n'aboutit que si `pnpm verify` réussit.
 Les variables `DATABASE_URL` et `DATABASE_URL_UNPOOLED` sont fournies par l'intégration
 Neon de Vercel. Les variables `BETTER_AUTH_SECRET` et `CRON_SECRET` sont définies dans les
 réglages du projet Vercel ; elles ne sont jamais versionnées. L'application refuse de démarrer
-sans la première ; sans la seconde, la route de la tâche planifiée reste fermée.
+sans la première ; sans la seconde, la route des tâches quotidiennes reste fermée.
 
 ## Documentation
 
@@ -137,6 +156,8 @@ sans la première ; sans la seconde, la route de la tâche planifiée reste ferm
 - [Revue de sécurité de l'authentification](docs/qualite/revue-securite-authentification.md)
 - [Revue de sécurité du Donjon](docs/qualite/revue-securite-donjon.md)
 - [Revue de sécurité du Marché](docs/qualite/revue-securite-marche.md)
+- [Registre des traitements](docs/rgpd/registre-traitements.md)
+- [Revue de conformité au RGPD](docs/rgpd/revue-conformite.md)
 
 ## Conventions
 
@@ -161,5 +182,10 @@ d'une projection a lieu pendant une consultation : sa durée croît avec la tail
 
 Une offre échue n'est plus proposée ni acceptée, mais ses ressources ne sont restituées au
 vendeur qu'à la consultation suivante du Marché, ou au plus tard lors de la tâche planifiée
-quotidienne. Les autres limites connues, dont le traitement des messages abandonnés, sont
-recensées dans le registre de la dette technique.
+quotidienne.
+
+L'effacement d'un compte parcourt tout le journal d'événements : sa durée croît avec la taille
+du journal. L'identifiant d'un joueur effacé reste dans le journal, sous une forme
+pseudonymisée : plus aucune table ne le relie à une personne (ADR 0008). Les autres limites
+connues, dont le traitement des messages abandonnés, sont recensées dans le registre de la
+dette technique.
