@@ -62,7 +62,7 @@ flowchart TB
   end
   subgraph modules["src/modules"]
     system["system<br/>Route de santé"]
-    realm["realm<br/>Village : domaine, service,<br/>dépôt fondé sur le journal, API, canal"]
+    realm["realm<br/>Village : domaine, service,<br/>dépôt fondé sur le journal, API, canal,<br/>version distante (remote.ts)"]
     dungeon["dungeon<br/>Donjon : domaine et IA, service,<br/>dépôt fondé sur le journal, API, canal discret,<br/>projection des expéditions ouvertes"]
     ranking["ranking<br/>Classement : projection,<br/>lecture, API, canal global"]
     market["market<br/>Marché : orchestrateur de la saga,<br/>projection des offres, API, canal global"]
@@ -70,11 +70,11 @@ flowchart TB
   end
   subgraph platform["src/platform"]
     auth["auth<br/>Port AuthPort,<br/>adaptateur Better Auth"]
-    http["http<br/>Intergiciel requireUser,<br/>validation des requêtes"]
+    http["http<br/>Intergiciel requireUser,<br/>validation des requêtes,<br/>authentification entre services"]
     realtime["realtime<br/>Flux SSE, règles d'accès<br/>aux canaux, canaux discrets et globaux"]
     store["event-store<br/>Journal d'événements,<br/>concurrence optimiste"]
     projection["projection<br/>Rattrapage et reconstruction<br/>des projections"]
-    outbox["outbox<br/>Boîte d'envoi,<br/>distributeur"]
+    outbox["outbox<br/>Boîte d'envoi, distributeur,<br/>boîte de réception"]
     privacy["privacy<br/>Export et effacement,<br/>registre des effacements"]
     cron["cron<br/>Route des tâches<br/>quotidiennes"]
     db["db<br/>Client Drizzle<br/>(Neon ou PGlite)"]
@@ -131,9 +131,38 @@ dependency-cruiser (`.dependency-cruiser.cjs`) à chaque exécution de `pnpm ver
 - le domaine d'un module ne dépend d'aucune bibliothèque technique ;
 - la couche application d'un module ne dépend pas de sa couche infrastructure ;
 - le code destiné au navigateur ne dépend d'aucun code serveur ;
-- aucune dépendance circulaire n'est admise.
+- aucune dépendance circulaire n'est admise ;
+- un module n'importe jamais les tables de la plateforme : il passe par ses fonctions.
+
+Deux fonctions d'aptitude complètent ces règles, sous la forme de tests
+(`src/bootstrap/architecture.test.ts`) : chaque table est rangée dans le schéma d'une brique
+de la plateforme ou d'un module, et chaque module qui conserve des données déclare ses
+données personnelles.
 
 Seule la racine de composition connaît à la fois la plateforme et l'ensemble des modules.
+
+## Extraction du Village
+
+Le Village peut s'exécuter dans un service autonome, distinct de l'application serveur
+(ADR 0009). Cette configuration n'est utilisée qu'en local, lorsque les variables
+`REALM_SERVICE_URL` et `SERVICE_SECRET` sont définies ; elle n'est pas déployée.
+
+```mermaid
+flowchart LR
+  web["Interface web"] -->|"/api/realm"| app["Application serveur<br/>passerelle et module distant"]
+  app -->|"requêtes du joueur, messages de la saga,<br/>export et effacement (secret partagé)"| village["Service Village<br/>[Hono, Node.js, port 4000]<br/>src/services/village"]
+  village -->|"réponses de la saga<br/>(/api/internal/messages)"| app
+  app -->|"relais du flux publié<br/>(GET /events)"| village
+  app --- base[("Base de l'application<br/>.data/pglite")]
+  village --- base2[("Base du service<br/>.data/village")]
+```
+
+L'application reçoit alors une version distante du module Village (`remote.ts`), de même
+forme que la version exécutée dans le processus : le reste de l'application ne voit pas la
+différence. Le relais recopie les événements publiés par le service dans le journal de
+l'application, où le Classement et le canal temps réel du village continuent de les lire.
+Le service est assemblé par sa propre racine de composition, `src/services/village`, qui
+n'utilise le module Village que par son point d'entrée public.
 
 ## Niveau 4 - Code
 
@@ -158,3 +187,6 @@ l'ensemble des contrôles a réussi, et les migrations ne sont appliquées qu'ap
 La tâche planifiée, déclarée dans `vercel.json`, exécute chaque jour les tâches quotidiennes :
 la distribution des messages restés en attente dans la boîte d'envoi, et l'application des
 durées de conservation de la Taverne. Elle ne s'exécute que sur le déploiement de production.
+
+Le service Village extrait n'est pas déployé : en production, le Village s'exécute dans
+les fonctions Vercel, comme les autres modules (ADR 0009).
