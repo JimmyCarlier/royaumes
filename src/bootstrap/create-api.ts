@@ -2,7 +2,7 @@ import { Hono } from 'hono'
 import { createDungeonModule } from '@/modules/dungeon'
 import { createMarketModule } from '@/modules/market'
 import { createRankingModule } from '@/modules/ranking'
-import { createRealmModule } from '@/modules/realm'
+import { createRealmModule, createRemoteRealmModule } from '@/modules/realm'
 import { createSystemModule } from '@/modules/system'
 import { createTavernModule } from '@/modules/tavern'
 import { createIdentityPersonalData } from '@/platform/auth/personal-data'
@@ -12,6 +12,7 @@ import type { Db } from '@/platform/db/client'
 import type { EventStore } from '@/platform/event-store/event-store'
 import { requireUser } from '@/platform/http/require-user'
 import type { AppEnv } from '@/platform/http/types'
+import { createInboxApi } from '@/platform/outbox/inbox-api'
 import { createDispatcher, type DispatcherOptions } from '@/platform/outbox/outbox'
 import { createPrivacyService } from '@/platform/privacy/privacy'
 import { createPrivacyApi } from '@/platform/privacy/privacy-api'
@@ -37,6 +38,11 @@ export interface ApiDeps {
   cronSecret?: string
   /** Réglages de la boîte d'envoi (horloge du distributeur) ; remplacés dans les tests. */
   outbox?: DispatcherOptions
+  /**
+   * Service Village extrait (TD11). Absent, le Village s'exécute dans le processus, comme
+   * sur Vercel ; présent, toutes ses fonctions sont demandées au service, à cette adresse.
+   */
+  realmService?: { url: string; secret: string; fetch?: typeof fetch }
 }
 
 /**
@@ -53,6 +59,7 @@ export function createApi({
   realtime,
   cronSecret,
   outbox,
+  realmService,
 }: ApiDeps) {
   // 0. Briques de la plateforme partagées par plusieurs modules.
   const projections = createProjectionRunner(db)
@@ -61,7 +68,12 @@ export function createApi({
 
   // 1. Instanciation des modules, avec les dépendances fournies par la plateforme.
   const system = createSystemModule()
-  const realm = createRealmModule({ store, clock })
+  // Le Village s'exécute dans le processus, ou dans un service extrait : le reste de
+  // l'application reçoit dans les deux cas un module de même forme.
+  const remoteRealm = realmService
+    ? createRemoteRealmModule({ ...realmService, store, projections })
+    : null
+  const realm = remoteRealm ?? createRealmModule({ store, clock })
   const dungeon = createDungeonModule({ store, db, projections, clock })
   const ranking = createRankingModule({ db, projections })
   // Le Marché déclenche la distribution après ses commandes et ses consultations.
@@ -145,10 +157,16 @@ export function createApi({
         },
         // Durée de conservation des données de la Taverne.
         tavern: tavern.dailyTask,
+        // Relais du flux publié par le Village extrait, s'il y en a un.
+        ...(remoteRealm ? { realm: remoteRealm.dailyTask } : {}),
       },
       cronSecret,
     ),
   )
+
+  // Boîte de réception des messages du Village extrait : réservée au service, qui
+  // s'authentifie par le secret partagé.
+  if (realmService) app.route('/internal', createInboxApi(dispatcher, realmService.secret))
 
   // 6. Routes réservées aux joueurs connectés : toute requête anonyme est refusée (401).
   //    Chaque nouveau module dont les routes sont réservées aux joueurs est ajouté ici.

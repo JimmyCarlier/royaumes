@@ -42,3 +42,5 @@ export function createRealmModule({ store, clock }: RealmModuleDeps) {
 }
 
 export type { RealmApi } from './api'
+// Village extrait dans un service distinct (TD11) : même forme, éléments distants.
+export { createRemoteRealmModule, type RemoteRealmDeps } from './remote'
