@@ -9,6 +9,7 @@ import { createTavernApi } from './api'
 import { createTavernService } from './application/tavern-service'
 import { MESSAGE_POSTED, TAVERN_CHANNEL } from './contracts'
 import { createDrizzleMessageRepository } from './infrastructure/drizzle-message-repository'
+import { createDrizzlePresenceRepository } from './infrastructure/drizzle-presence-repository'
 
 export interface TavernModuleDeps {
   /** Base de données, dans laquelle la Taverne tient ses tables. */
@@ -23,7 +24,7 @@ const CHANNEL_BATCH = 100
 /** Fabrique du module : assemble l'adaptateur, le service, l'API et la règle du canal. */
 export function createTavernModule({ db, clock }: TavernModuleDeps) {
   const repo = createDrizzleMessageRepository(db)
-  const service = createTavernService(repo, clock)
+  const service = createTavernService(repo, createDrizzlePresenceRepository(db), clock)
 
   // Canal de la Taverne : tout joueur connecté peut l'écouter. Il ne lit pas le journal,
   // mais la table des messages ; chaque message y est présenté comme un événement, dont la

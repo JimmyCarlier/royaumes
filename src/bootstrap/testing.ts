@@ -63,5 +63,7 @@ export async function createTestApi() {
     now += minutes * 60_000
   }
 
-  return { api, get, post, advance }
+  // La base est aussi renvoyée : certains tests vérifient directement le contenu des tables,
+  // par exemple qu'une donnée personnelle a bien été supprimée.
+  return { api, db, get, post, advance }
 }

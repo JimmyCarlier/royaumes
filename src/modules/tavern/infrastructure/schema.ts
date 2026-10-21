@@ -24,3 +24,13 @@ export const messages = tavern.table(
     index('messages_posted_at_idx').on(t.postedAt),
   ],
 )
+
+/**
+ * Joueurs présents : une ligne par joueur, mise à jour à chaque signal de présence, et
+ * supprimée lorsque le joueur est parti. Aucun historique des visites n'est conservé.
+ */
+export const presence = tavern.table('presence', {
+  playerId: text('player_id').primaryKey(),
+  playerName: text('player_name').notNull(),
+  lastSeen: bigint('last_seen', { mode: 'number' }).notNull(),
+})

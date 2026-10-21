@@ -11,6 +11,7 @@ export const NAV = [
   { href: '/dungeon', kind: 'dungeon', label: 'Donjon' },
   { href: '/ranking', kind: 'ranking', label: 'Classement' },
   { href: '/market', kind: 'market', label: 'Marché' },
+  { href: '/tavern', kind: 'tavern', label: 'Taverne' },
 ]
 
 /** Cadre de l'espace de jeu : navigation, nom du joueur et déconnexion. */

@@ -28,6 +28,7 @@ export const theme: Record<string, Look> = {
   door: { glyph: '🚪', label: 'Porte' },
   ranking: { glyph: '🏆', label: 'Classement' },
   market: { glyph: '⚖️', label: 'Marché' },
+  tavern: { glyph: '🍺', label: 'Taverne' },
 }
 
 /** Apparence d'une entité ; une apparence neutre si l'entité n'est pas décrite. */

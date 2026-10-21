@@ -112,3 +112,9 @@ button.link { background: none; color: var(--accent); padding: 0; }
 .offers { list-style: none; padding: 0; margin: 0; display: grid; gap: 8px; }
 .offers li { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
 input.amount { width: 5em; }
+/* Taverne */
+.tavern { display: grid; grid-template-columns: 1fr 200px; gap: 16px; align-items: start; }
+@media (max-width: 640px) { .tavern { grid-template-columns: 1fr; } }
+.messages { list-style: none; padding: 0; margin: 0 0 12px; display: grid; gap: 6px; max-height: 60vh; overflow-y: auto; overflow-wrap: anywhere; }
+.messages li[data-mine] strong { color: var(--accent); }
+.presence { list-style: none; padding: 0; margin: 0; display: grid; gap: 4px; }

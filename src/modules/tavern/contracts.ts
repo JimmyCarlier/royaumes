@@ -7,6 +7,7 @@ import { MESSAGE_MAX_LENGTH } from './domain/message'
 
 export type { MessageError } from './domain/message'
 export { MESSAGE_MAX_LENGTH } from './domain/message'
+export { HEARTBEAT_MS } from './domain/presence'
 
 /** Message de la Taverne, tel que le reçoivent les joueurs. */
 export interface TavernMessage {
@@ -16,6 +17,12 @@ export interface TavernMessage {
   authorName: string
   body: string
   postedAt: number
+}
+
+/** Joueur présent dans la Taverne. La date de son dernier signal n'est pas transmise. */
+export interface PresentPlayer {
+  id: string
+  name: string
 }
 
 /** Corps attendu pour publier un message. La longueur exacte est vérifiée par le domaine. */
