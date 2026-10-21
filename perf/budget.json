@@ -1,0 +1,5 @@
+{
+  "connections": 20,
+  "maxP99Ms": 500,
+  "maxErrors": 0
+}

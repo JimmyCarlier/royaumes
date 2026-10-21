@@ -1,4 +1,4 @@
-import { asc, eq, gt } from 'drizzle-orm'
+import { asc, eq, gt, max } from 'drizzle-orm'
 import type { Db } from '../db/client'
 import type { StoredEvent } from '../event-store/event-store'
 import { events } from '../event-store/schema'
@@ -125,12 +125,32 @@ export function createProjectionRunner(
   }
 
   /**
+   * Indique si la projection est à jour : ses tables ont été construites par la version
+   * du code, et son point de reprise a atteint la dernière position du journal.
+   * Deux lectures simples, sans transaction, sans verrou et sans écriture (TD11).
+   */
+  async function isUpToDate(projection: Projection): Promise<boolean> {
+    const [checkpoint] = await db
+      .select({ position: projections.position, version: projections.version })
+      .from(projections)
+      .where(eq(projections.name, projection.name))
+    if (!checkpoint || checkpoint.version !== projection.version) return false
+    const [last] = await db.select({ position: max(events.position) }).from(events)
+    return checkpoint.position >= Number(last?.position ?? 0)
+  }
+
+  /**
    * Applique à la projection les événements enregistrés depuis son point de reprise,
    * et renvoie le nombre d'événements appliqués. Tout a lieu dans une seule transaction :
    * les tables et le point de reprise sont mis à jour ensemble, ou pas du tout.
    * Si la version de la projection a changé, ses tables sont d'abord reconstruites.
    */
   async function catchUp(projection: Projection): Promise<number> {
+    // Chemin rapide : une projection à jour n'a rien à appliquer. Le cas est de loin le plus
+    // fréquent, puisque le journal change bien moins souvent qu'il n'est consulté ; il évite
+    // la transaction, le verrou du point de reprise et l'écriture de sa date de mise à jour.
+    if (await isUpToDate(projection)) return 0
+
     return db.transaction(async (tx) => {
       const checkpoint = await lock(tx, projection)
 
