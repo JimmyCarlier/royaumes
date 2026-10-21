@@ -28,7 +28,7 @@ flowchart TB
   subgraph royaumes["Système Royaumes"]
     web["Interface web<br/>[Conteneur : React, dans le navigateur]<br/>Pages du jeu et page de connexion"]
     serveur["Application serveur<br/>[Conteneur : Next.js et Hono, fonctions Vercel, Francfort]<br/>Rendu des pages, API JSON,<br/>authentification, flux temps réel"]
-    base[("Base de données<br/>[Conteneur : PostgreSQL, Neon, Francfort]<br/>Schéma platform : journal, points de reprise<br/>Schéma identity : comptes et sessions<br/>Schémas ranking et dungeon : modèles de lecture")]
+    base[("Base de données<br/>[Conteneur : PostgreSQL, Neon, Francfort]<br/>Schéma platform : journal, points de reprise,<br/>boîte d'envoi<br/>Schéma identity : comptes et sessions<br/>Schémas ranking, dungeon et market :<br/>modèles de lecture")]
   end
   joueur -->|"Utilise"| web
   web -->|"Pages, appels de l'API avec le cookie de session<br/>(HTTPS, JSON)"| serveur
@@ -42,8 +42,8 @@ flowchart TB
 | Application serveur | Next.js, Hono, Better Auth, Drizzle | Contrôle d'accès, règles du jeu, enregistrement des événements, diffusion des flux |
 | Base de données | PostgreSQL (Neon en production, PGlite en local et en test) | Conservation du journal d'événements, des comptes et des sessions ; modèles de lecture des modules |
 
-Le journal d'événements est la seule source de vérité. Les tables des schémas `ranking` et
-`dungeon` sont des modèles de lecture, dérivés du journal par des projections : elles peuvent
+Le journal d'événements est la seule source de vérité. Les tables des schémas `ranking`,
+`dungeon` et `market` sont des modèles de lecture, dérivés du journal par des projections : elles peuvent
 être vidées puis reconstruites à tout moment, sans perte d'information.
 
 L'interface web ne communique jamais directement avec la base : toute lecture et toute
@@ -64,6 +64,7 @@ flowchart TB
     realm["realm<br/>Village : domaine, service,<br/>dépôt fondé sur le journal, API, canal"]
     dungeon["dungeon<br/>Donjon : domaine et IA, service,<br/>dépôt fondé sur le journal, API, canal discret,<br/>projection des expéditions ouvertes"]
     ranking["ranking<br/>Classement : projection,<br/>lecture, API, canal global"]
+    market["market<br/>Marché : orchestrateur de la saga,<br/>projection des offres, API, canal global"]
   end
   subgraph platform["src/platform"]
     auth["auth<br/>Port AuthPort,<br/>adaptateur Better Auth"]
@@ -71,18 +72,22 @@ flowchart TB
     realtime["realtime<br/>Flux SSE, règles d'accès<br/>aux canaux, canaux discrets et globaux"]
     store["event-store<br/>Journal d'événements,<br/>concurrence optimiste"]
     projection["projection<br/>Rattrapage et reconstruction<br/>des projections"]
+    outbox["outbox<br/>Boîte d'envoi, distributeur,<br/>route planifiée"]
     db["db<br/>Client Drizzle<br/>(Neon ou PGlite)"]
   end
   base[("Base de données")]
   route --> server
   pages --> server
   server --> createapi
-  createapi --> system & realm & dungeon & ranking & auth & http & realtime & projection
-  realm --> store & realtime & http
+  createapi --> system & realm & dungeon & ranking & market & auth & http & realtime & projection & outbox
+  realm --> store & realtime & http & outbox
+  market --> store & projection & realtime & http & outbox
   dungeon --> store & projection & realtime & http
   ranking --> projection & realtime & http
   realtime --> store & http
   projection --> db
+  store --> outbox
+  outbox --> db
   http --> auth
   auth --> db
   store --> db
@@ -97,6 +102,12 @@ dans leurs propres tables, au sein de la transaction fournie par le moteur des p
 Le module `ranking` lit des événements du Village et du Donjon, mais n'importe aucun de leurs
 fichiers en dehors de leurs contrats : il ne dépend que de leur langage publié, c'est-à-dire
 du nom et des données de leurs événements, ainsi que du préfixe de leurs flux.
+
+Le module `market` modifie les villages sans jamais importer le code du Village : il enregistre
+des messages dans la boîte d'envoi, que le distributeur remet aux gestionnaires du Village.
+La seule dépendance directe porte sur les contrats du Village (`REALM_TOPICS`, `ResourceAmounts`),
+qui décrivent ces messages. Chaque transaction ne modifie que les données d'un seul module,
+et la boîte d'envoi (ADR 0007).
 
 Les règles suivantes sont vérifiées automatiquement par
 dependency-cruiser (`.dependency-cruiser.cjs`) à chaque exécution de `pnpm verify` :
@@ -124,7 +135,11 @@ flowchart LR
   build -->|"Migrations<br/>(connexion directe)"| neon[("Neon<br/>Francfort")]
   build -->|"Publie"| fonctions["Fonctions Vercel<br/>Francfort (fra1)"]
   fonctions -->|"SQL<br/>(connexion mutualisée)"| neon
+  cron["Tâche planifiée Vercel<br/>chaque jour à 4 h UTC"] -->|"GET /api/outbox/dispatch<br/>(secret CRON_SECRET)"| fonctions
 ```
 
 Chaque envoi sur la branche `main` déclenche un déploiement. Le code n'est publié que si
 l'ensemble des contrôles a réussi, et les migrations ne sont appliquées qu'après ces contrôles.
+
+La tâche planifiée, déclarée dans `vercel.json`, distribue chaque jour les messages restés en
+attente dans la boîte d'envoi. Elle ne s'exécute que sur le déploiement de production.

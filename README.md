@@ -71,6 +71,7 @@ Un module n'est accessible depuis l'extérieur que par ses entrées publiques : 
 | `realm` | Village : fondation, production de ressources, amélioration des bâtiments | `/api/realm` |
 | `dungeon` | Donjon : expéditions de un à quatre héros, compagnons pilotés par l'ordinateur, deux niveaux de difficulté, combats en manches simultanées | `/api/dungeon` |
 | `ranking` | Classement des joueurs, construit à partir des événements du Village et du Donjon | `/api/ranking` |
+| `market` | Marché : échanges de ressources entre joueurs, par une saga orchestrée | `/api/market` |
 
 ## Temps réel
 
@@ -79,17 +80,27 @@ Les changements sont diffusés aux navigateurs par des Server-Sent Events, à l'
 la règle du module concerné. Le canal `village-<joueur>` n'est ainsi accessible qu'au
 propriétaire du village, et le canal `dungeon-<expédition>` aux seuls membres de l'expédition.
 
-La plupart des canaux correspondent à un flux du journal d'événements. Le canal `ranking`
-est un canal global : il suit, dans tout le journal, les événements qui modifient le
-classement, et ne transmet que ceux qui sont enregistrés après son ouverture.
+La plupart des canaux correspondent à un flux du journal d'événements. Les canaux `ranking`
+et `market` sont des canaux globaux : ils suivent, dans tout le journal, les événements qui
+modifient le classement ou la liste des offres, et ne transmettent que ceux qui sont
+enregistrés après leur ouverture.
 
-Les canaux du Donjon et du Classement sont discrets : ils ne transmettent que la position,
+Les canaux du Donjon, du Classement et du Marché sont discrets : ils ne transmettent que la position,
 le type et la version des événements, et chaque navigateur relit sa propre vue, filtrée
 par le serveur.
 
 Un flux se ferme de lui-même au bout de 240 secondes, et le navigateur s'y reconnecte
 sans perte d'événement. En développement, la variable `STREAM_MAX_SECONDS` permet de
 raccourcir cette durée pour observer la reconnexion.
+
+## Échanges entre modules
+
+Une opération qui modifie les données de plusieurs modules, comme un échange du Marché, est
+une saga (ADR 0007) : chaque étape est une transaction locale à un module, et les modules
+communiquent par des messages enregistrés dans la boîte d'envoi (`platform.outbox`), dans la
+même transaction que leurs événements. Les messages sont distribués après chaque commande et
+chaque consultation du Marché, et chaque jour par une tâche planifiée de Vercel. Leur livraison
+est garantie au moins une fois : les gestionnaires de messages sont idempotents.
 
 ## Base de données
 
@@ -114,8 +125,9 @@ indiquée dans la rubrique « About » du dépôt GitHub. Chaque envoi sur la br
 déclenche un déploiement, qui n'aboutit que si `pnpm verify` réussit.
 
 Les variables `DATABASE_URL` et `DATABASE_URL_UNPOOLED` sont fournies par l'intégration
-Neon de Vercel. La variable `BETTER_AUTH_SECRET` est définie dans les réglages du projet
-Vercel ; elle n'est jamais versionnée, et l'application refuse de démarrer sans elle.
+Neon de Vercel. Les variables `BETTER_AUTH_SECRET` et `CRON_SECRET` sont définies dans les
+réglages du projet Vercel ; elles ne sont jamais versionnées. L'application refuse de démarrer
+sans la première ; sans la seconde, la route de la tâche planifiée reste fermée.
 
 ## Documentation
 
@@ -124,6 +136,7 @@ Vercel ; elle n'est jamais versionnée, et l'application refuse de démarrer san
 - [Registre de la dette technique](docs/qualite/dette-technique.md)
 - [Revue de sécurité de l'authentification](docs/qualite/revue-securite-authentification.md)
 - [Revue de sécurité du Donjon](docs/qualite/revue-securite-donjon.md)
+- [Revue de sécurité du Marché](docs/qualite/revue-securite-marche.md)
 
 ## Conventions
 
@@ -144,4 +157,9 @@ le script de simulation permet de le mesurer.
 Le classement et la liste des expéditions ouvertes peuvent présenter, pendant quelques
 secondes, un état qui ne tient pas encore compte des derniers événements. La reconstruction
 d'une projection a lieu pendant une consultation : sa durée croît avec la taille du journal
-(ADR 0006). Les autres limites connues sont recensées dans le registre de la dette technique.
+(ADR 0006).
+
+Une offre échue n'est plus proposée ni acceptée, mais ses ressources ne sont restituées au
+vendeur qu'à la consultation suivante du Marché, ou au plus tard lors de la tâche planifiée
+quotidienne. Les autres limites connues, dont le traitement des messages abandonnés, sont
+recensées dans le registre de la dette technique.
