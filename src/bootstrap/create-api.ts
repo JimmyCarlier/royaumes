@@ -133,10 +133,16 @@ export function createApi({
     '/cron',
     createCronApi(
       {
-        // Distribution des messages restés en attente dans la boîte d'envoi.
-        // DETTE TECHNIQUE DT-007 (docs/qualite/dette-technique.md) : les messages abandonnés
-        // sont seulement comptés ; aucun outil ne permet de les examiner ni de les relancer.
-        outbox: async () => ({ ...(await dispatcher.dispatch()), ...(await dispatcher.status()) }),
+        // Distribution des messages restés en attente dans la boîte d'envoi. Des messages
+        // abandonnés produisent un avertissement dans les journaux : ils demandent un examen,
+        // par le script scripts/dead-letters.ts.
+        outbox: async () => {
+          const result = { ...(await dispatcher.dispatch()), ...(await dispatcher.status()) }
+          if (result.abandoned > 0) {
+            console.warn(`Boîte d'envoi : ${result.abandoned} message(s) abandonné(s) à examiner`)
+          }
+          return result
+        },
         // Durée de conservation des données de la Taverne.
         tavern: tavern.dailyTask,
       },

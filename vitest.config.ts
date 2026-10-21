@@ -16,5 +16,14 @@ export default defineConfig({
     // Chaque fichier de test de l'API démarre sa propre base PGlite : sur un poste chargé,
     // ce démarrage peut dépasser le délai par défaut de cinq secondes.
     testTimeout: 20_000,
+    // Couverture du code par les tests (TD11), mesurée par la commande pnpm test:coverage.
+    coverage: {
+      provider: 'v8',
+      // Seul le code du projet est mesuré, hors tests et hors pages Next.js.
+      include: ['src/**/*.ts', 'src/**/*.tsx'],
+      exclude: ['src/**/*.test.ts'],
+      reporter: ['text-summary', 'html'],
+      reportsDirectory: 'coverage',
+    },
   },
 })

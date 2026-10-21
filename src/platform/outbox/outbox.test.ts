@@ -159,6 +159,37 @@ describe("Boîte d'envoi : échecs", () => {
     expect(received[0].attempt).toBe(2)
   })
 
+  it('liste les messages abandonnés, et permet de les relancer', async () => {
+    await store.append('s-1', 0, [{ type: 'A', data: {} }], [ping(1)])
+    const clock = testClock()
+    let broken = true
+    const dispatcher = createDispatcher(db, { now: clock.now, maxAttempts: 2 })
+    dispatcher.register({
+      'test.ping': async () => {
+        if (broken) throw new Error('gestionnaire défaillant')
+      },
+    })
+    for (let i = 0; i < 3; i++) {
+      await dispatcher.dispatch()
+      clock.advance(3_600_000)
+    }
+
+    const [dead] = await dispatcher.abandoned()
+    expect(dead).toMatchObject({
+      topic: 'test.ping',
+      attempts: 2,
+      lastError: 'gestionnaire défaillant',
+    })
+
+    // La cause est corrigée, puis le message relancé : il est remis à la distribution suivante.
+    broken = false
+    expect(await dispatcher.retry(dead.id)).toBe(true)
+    expect(await dispatcher.dispatch()).toEqual({ delivered: 1, failed: 0 })
+    expect(await dispatcher.abandoned()).toEqual([])
+    // Un message traité ne peut plus être relancé.
+    expect(await dispatcher.retry(dead.id)).toBe(false)
+  })
+
   it("compte comme un échec un message dont le sujet n'a aucun gestionnaire", async () => {
     const dispatcher = createDispatcher(db)
     await store.append('s-1', 0, [{ type: 'A', data: {} }], [ping(1)])

@@ -1,4 +1,4 @@
-import { eq, isNull, sql } from 'drizzle-orm'
+import { and, asc, eq, gte, isNull, sql } from 'drizzle-orm'
 import type { Db } from '../db/client'
 import { outbox } from './schema'
 
@@ -167,7 +167,41 @@ export function createDispatcher(
     return { pending: Number(row.pending), abandoned: Number(row.abandoned) }
   }
 
-  return { register, dispatch, status }
+  /**
+   * Messages abandonnés après le nombre maximal de tentatives (lettres mortes), avec la cause
+   * de leur dernier échec. Destinés à l'exploitation : ils permettent de diagnostiquer
+   * une saga interrompue.
+   */
+  function abandoned() {
+    return db
+      .select({
+        id: outbox.id,
+        topic: outbox.topic,
+        payload: outbox.payload,
+        attempts: outbox.attempts,
+        lastError: outbox.lastError,
+        createdAt: outbox.createdAt,
+      })
+      .from(outbox)
+      .where(and(isNull(outbox.processedAt), gte(outbox.attempts, maxAttempts)))
+      .orderBy(asc(outbox.createdAt))
+  }
+
+  /**
+   * Relance un message abandonné, une fois la cause de ses échecs corrigée : son nombre de
+   * tentatives est remis à zéro, et il sera remis à la prochaine distribution.
+   * Renvoie faux si le message n'existe pas, ou n'est pas abandonné.
+   */
+  async function retry(id: string) {
+    const updated = await db
+      .update(outbox)
+      .set({ attempts: 0, availableAt: new Date(now()), lastError: null })
+      .where(and(eq(outbox.id, id), isNull(outbox.processedAt), gte(outbox.attempts, maxAttempts)))
+      .returning({ id: outbox.id })
+    return updated.length === 1
+  }
+
+  return { register, dispatch, status, abandoned, retry }
 }
 
 /** Type du distributeur, déduit de sa fabrique. */

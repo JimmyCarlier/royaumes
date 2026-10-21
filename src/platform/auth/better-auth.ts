@@ -2,7 +2,7 @@ import { betterAuth } from 'better-auth'
 import { drizzleAdapter } from 'better-auth/adapters/drizzle'
 import type { Db } from '../db/client'
 import type { AuthPort } from './port'
-import { account, session, user, verification } from './schema'
+import { account, rateLimit, session, user, verification } from './schema'
 
 /**
  * Domaines attribués par Vercel au déploiement en cours : le domaine de production,
@@ -55,7 +55,7 @@ export function createBetterAuth(db: Db): AuthPort {
     // Les comptes et les sessions sont conservés dans la base du projet, par Drizzle.
     database: drizzleAdapter(db, {
       provider: 'pg',
-      schema: { user, session, account, verification },
+      schema: { user, session, account, verification, rateLimit },
     }),
     // Connexion par adresse électronique et mot de passe, d'au moins 8 caractères.
     emailAndPassword: { enabled: true, minPasswordLength: 8 },
@@ -64,11 +64,12 @@ export function createBetterAuth(db: Db): AuthPort {
     // Origines autorisées : seules les adresses de ce projet peuvent émettre des requêtes
     // accompagnées d'un cookie de session (protection contre la falsification de requête).
     trustedOrigins: [resolveBaseUrl(), ...vercelOrigins()],
-    // Limitation du nombre de tentatives : voir la sous-partie 2.3.
-    // DETTE TECHNIQUE DT-004 (docs/qualite/dette-technique.md) : les compteurs sont conservés
-    // dans la mémoire de chaque instance, et ne sont donc pas partagés entre instances.
+    // Limitation du nombre de tentatives (TD4). Les compteurs sont conservés dans la base
+    // (TD11) : toutes les instances de l'application partagent la même limite. Chaque
+    // tentative est comptée par une mise à jour conditionnelle, sûre en cas d'accès simultanés.
     rateLimit: {
       enabled: process.env.AUTH_RATE_LIMIT !== 'off' || Boolean(process.env.VERCEL),
+      storage: 'database',
       customRules: {
         '/sign-up/email': { window: 60, max: 40 },
         '/sign-in/email': { window: 60, max: 60 },
