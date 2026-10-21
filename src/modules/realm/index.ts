@@ -9,6 +9,7 @@ import { createRealmApi } from './api'
 import { createVillageService } from './application/village-service'
 import { villageChannel } from './contracts'
 import { createEventStoreVillageRepository } from './infrastructure/event-store-village-repository'
+import { createRealmHandlers } from './messages'
 
 export interface RealmModuleDeps {
   /** Journal d'événements de la plateforme, fourni par la racine de composition. */
@@ -17,7 +18,10 @@ export interface RealmModuleDeps {
   clock?: () => number
 }
 
-/** Fabrique du module : assemble l'adaptateur, le service, l'API et la règle du canal. */
+/**
+ * Fabrique du module : assemble l'adaptateur, le service, l'API, la règle du canal et les
+ * gestionnaires de messages, que la racine de composition confie au distributeur.
+ */
 export function createRealmModule({ store, clock }: RealmModuleDeps) {
   const repo = createEventStoreVillageRepository(store)
   const service = createVillageService(repo, clock)
@@ -28,7 +32,7 @@ export function createRealmModule({ store, clock }: RealmModuleDeps) {
     canSubscribe: (channel, userId) => channel === villageChannel(userId),
   }
 
-  return { api: createRealmApi(service), channelPolicy }
+  return { api: createRealmApi(service), channelPolicy, handlers: createRealmHandlers(service) }
 }
 
 export type { RealmApi } from './api'

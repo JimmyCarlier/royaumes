@@ -1,3 +1,4 @@
+import type { NewMessage } from '@/platform/outbox/outbox'
 import type { VillageEvent, VillageState } from '../domain/village'
 
 /**
@@ -17,6 +18,12 @@ export interface VillageRepository {
    * expectedVersion est la version lue au chargement : si d'autres événements
    * ont été enregistrés entre-temps, l'enregistrement est refusé par une
    * ConcurrencyError, l'erreur du journal d'événements de la plateforme.
+   * Les messages éventuels sont enregistrés dans la boîte d'envoi, avec les événements.
    */
-  save(userId: string, expectedVersion: number, events: VillageEvent[]): Promise<void>
+  save(
+    userId: string,
+    expectedVersion: number,
+    events: VillageEvent[],
+    messages?: NewMessage[],
+  ): Promise<void>
 }

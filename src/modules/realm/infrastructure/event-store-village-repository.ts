@@ -20,9 +20,15 @@ export function createEventStoreVillageRepository(store: EventStore): VillageRep
       return { state: replay(events), version: stored.at(-1)?.version ?? 0 }
     },
 
-    async save(userId, expectedVersion, events) {
-      // Les événements du domaine sont transmis au journal sous leur forme générique.
-      await store.append(villageStream(userId), expectedVersion, events as unknown as NewEvent[])
+    async save(userId, expectedVersion, events, messages) {
+      // Les événements du domaine sont transmis au journal sous leur forme générique,
+      // avec les messages éventuels, enregistrés dans la même transaction.
+      await store.append(
+        villageStream(userId),
+        expectedVersion,
+        events as unknown as NewEvent[],
+        messages,
+      )
     },
   }
 }
