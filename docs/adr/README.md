@@ -13,3 +13,4 @@ un nouvel ADR est rédigé et l'ancien prend le statut « remplacé ».
 | [0005](0005-intelligence-artificielle.md) | Intelligence artificielle déterministe, sans tâche de fond | Accepté |
 | [0006](0006-cqrs-projections.md) | CQRS : modèles de lecture tenus par des projections rattrapées à la lecture | Accepté |
 | [0007](0007-saga-boite-envoi.md) | Saga orchestrée et boîte d'envoi transactionnelle pour les opérations entre modules | Accepté |
+| [0008](0008-donnees-personnelles.md) | Stockage classique pour la Taverne, et réécriture ciblée du journal pour l'effacement | Accepté |
