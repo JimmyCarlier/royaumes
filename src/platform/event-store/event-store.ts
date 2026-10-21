@@ -1,5 +1,7 @@
 import { and, asc, eq, gt, inArray, like, max } from 'drizzle-orm'
 import type { Db } from '../db/client'
+import { type NewMessage, toOutboxRow } from '../outbox/outbox'
+import { outbox } from '../outbox/schema'
 import { events } from './schema'
 
 /** Événement à enregistrer : un type et des données, que la plateforme n'interprète pas. */
@@ -32,8 +34,15 @@ export interface EventStore {
    * Ajoute des événements à la fin d'un flux.
    * expectedVersion est la version du flux lue avant la décision ;
    * une ConcurrencyError est levée si elle n'est plus la version courante.
+   * Les messages éventuels sont enregistrés dans la boîte d'envoi, dans la même transaction :
+   * ils ne sont enregistrés que si les événements le sont.
    */
-  append(stream: string, expectedVersion: number, newEvents: NewEvent[]): Promise<StoredEvent[]>
+  append(
+    stream: string,
+    expectedVersion: number,
+    newEvents: NewEvent[],
+    messages?: NewMessage[],
+  ): Promise<StoredEvent[]>
 
   /** Relit les événements d'un flux postérieurs à une version (tous par défaut), dans l'ordre. */
   read(stream: string, afterVersion?: number): Promise<StoredEvent[]>
@@ -83,7 +92,7 @@ function toStored(row: typeof events.$inferSelect): StoredEvent {
 /** Journal d'événements fondé sur la table platform.events. */
 export function createEventStore(db: Db): EventStore {
   return {
-    async append(stream, expectedVersion, newEvents) {
+    async append(stream, expectedVersion, newEvents, messages = []) {
       if (newEvents.length === 0) return []
 
       // Les versions des nouveaux événements suivent la version attendue.
@@ -95,8 +104,18 @@ export function createEventStore(db: Db): EventStore {
       }))
 
       try {
-        // Une seule instruction INSERT : les événements sont tous enregistrés, ou aucun.
-        const inserted = await db.insert(events).values(rows).returning()
+        // Sans message : une seule instruction INSERT, les événements sont tous enregistrés, ou aucun.
+        if (messages.length === 0) {
+          const inserted = await db.insert(events).values(rows).returning()
+          return inserted.map(toStored)
+        }
+        // Avec des messages : une transaction englobe les deux insertions. Si les événements
+        // sont refusés, par un conflit de version notamment, aucun message n'est enregistré.
+        const inserted = await db.transaction(async (tx) => {
+          const stored = await tx.insert(events).values(rows).returning()
+          await tx.insert(outbox).values(messages.map(toOutboxRow))
+          return stored
+        })
         return inserted.map(toStored)
       } catch (error) {
         // La contrainte (stream, version) a refusé l'écriture : un autre enregistrement

@@ -37,7 +37,14 @@ export function getServer(): Server {
     // La variable STREAM_MAX_SECONDS permet de la raccourcir pour observer la reconnexion.
     const maxStreamMs = Number(process.env.STREAM_MAX_SECONDS ?? 240) * 1000
     globalForServer.royaumes = {
-      api: createApi({ auth, db, store, ready, realtime: { maxStreamMs } }),
+      api: createApi({
+        auth,
+        db,
+        store,
+        ready,
+        realtime: { maxStreamMs },
+        cronSecret: process.env.CRON_SECRET,
+      }),
       auth,
       ready,
     }

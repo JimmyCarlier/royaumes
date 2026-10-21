@@ -15,6 +15,9 @@ export const testAuth: AuthPort = {
   },
 }
 
+/** Secret de la tâche planifiée, dans les tests. */
+export const TEST_CRON_SECRET = 'secret-de-test'
+
 /** Joueur au nom duquel une requête de test est envoyée ; null pour une requête anonyme. */
 type TestUser = string | null
 
@@ -33,6 +36,7 @@ export async function createTestApi() {
     store,
     clock: () => now,
     realtime: { pollMs: 20, maxStreamMs: 150 },
+    cronSecret: TEST_CRON_SECRET,
   })
 
   /** En-têtes identifiant le joueur, ou aucun en-tête pour une requête anonyme. */

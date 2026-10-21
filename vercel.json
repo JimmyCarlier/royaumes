@@ -3,5 +3,6 @@
   "framework": "nextjs",
   "installCommand": "pnpm install --frozen-lockfile",
   "buildCommand": "pnpm vercel-build",
-  "regions": ["fra1"]
+  "regions": ["fra1"],
+  "crons": [{ "path": "/api/outbox/dispatch", "schedule": "0 4 * * *" }]
 }

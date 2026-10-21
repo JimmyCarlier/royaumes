@@ -8,6 +8,8 @@ import type { Db } from '@/platform/db/client'
 import type { EventStore } from '@/platform/event-store/event-store'
 import { requireUser } from '@/platform/http/require-user'
 import type { AppEnv } from '@/platform/http/types'
+import { createDispatchApi } from '@/platform/outbox/dispatch-api'
+import { createDispatcher } from '@/platform/outbox/outbox'
 import { createProjectionRunner } from '@/platform/projection/projection'
 import type { ChannelPolicy } from '@/platform/realtime/channel-policy'
 import { createRealtimeApi, type RealtimeOptions } from '@/platform/realtime/stream-api'
@@ -26,6 +28,8 @@ export interface ApiDeps {
   clock?: () => number
   /** Réglages du temps réel (durée des flux, intervalle de lecture) ; raccourcis dans les tests. */
   realtime?: Partial<Omit<RealtimeOptions, 'store' | 'policies'>>
+  /** Secret attendu de la tâche planifiée qui distribue la boîte d'envoi ; route fermée sans lui. */
+  cronSecret?: string
 }
 
 /**
@@ -33,9 +37,11 @@ export interface ApiDeps {
  * la plateforme technique et l'ensemble des modules.
  * Ajouter un module consiste à l'instancier ici, puis à monter son API.
  */
-export function createApi({ auth, db, store, ready, clock, realtime }: ApiDeps) {
+export function createApi({ auth, db, store, ready, clock, realtime, cronSecret }: ApiDeps) {
   // 0. Briques de la plateforme partagées par plusieurs modules.
   const projections = createProjectionRunner(db)
+  // Distributeur de la boîte d'envoi : les modules lui confient leurs gestionnaires de messages.
+  const dispatcher = createDispatcher(db)
 
   // 1. Instanciation des modules, avec les dépendances fournies par la plateforme.
   const system = createSystemModule()
@@ -73,6 +79,10 @@ export function createApi({ auth, db, store, ready, clock, realtime }: ApiDeps) 
   // 5. Routes d'authentification (inscription, connexion, déconnexion, session),
   //    entièrement traitées par l'adaptateur d'authentification.
   app.on(['GET', 'POST'], '/auth/*', (c) => auth.handler(c.req.raw))
+
+  // Distribution planifiée de la boîte d'envoi : réservée à la tâche planifiée de Vercel,
+  // qui s'authentifie par un secret, et non par une session de joueur.
+  app.route('/outbox', createDispatchApi(dispatcher, cronSecret))
 
   // 6. Routes réservées aux joueurs connectés : toute requête anonyme est refusée (401).
   //    Chaque nouveau module dont les routes sont réservées aux joueurs est ajouté ici.
