@@ -26,7 +26,8 @@ type TestUser = string | null
  * et l'adaptateur d'authentification de test.
  */
 export async function createTestApi() {
-  let now = Date.UTC(2026, 0, 1)
+  const start = Date.UTC(2026, 0, 1)
+  let now = start
   const db = await createTestDatabase()
   const store = createEventStore(db)
   // Flux temps réel très courts, afin que les tests ne restent pas bloqués sur un flux ouvert.
@@ -37,6 +38,10 @@ export async function createTestApi() {
     clock: () => now,
     realtime: { pollMs: 20, maxStreamMs: 150 },
     cronSecret: TEST_CRON_SECRET,
+    // Le distributeur compare la date de disponibilité des messages, fixée par la base en
+    // heure réelle, à sa propre horloge : celle-ci part de l'heure réelle, et avance avec
+    // l'horloge de l'application.
+    outbox: { now: () => Date.now() + (now - start) },
   })
 
   /** En-têtes identifiant le joueur, ou aucun en-tête pour une requête anonyme. */

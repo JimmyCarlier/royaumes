@@ -8,10 +8,15 @@ export interface NewMessage {
   topic: string
   /** Contenu du message, que la plateforme n'interprète pas. */
   payload: Record<string, unknown>
+  /**
+   * Délai avant la première remise, en millisecondes. Un message différé sert de minuterie :
+   * il est remis à la première distribution qui suit l'écoulement du délai.
+   */
+  delayMs?: number
 }
 
 /** Message remis à un gestionnaire. */
-export interface Message extends NewMessage {
+export interface Message extends Omit<NewMessage, 'delayMs'> {
   id: string
   /** Numéro de la tentative en cours, à partir de 1. */
   attempt: number
@@ -24,11 +29,18 @@ export interface Message extends NewMessage {
  */
 export type MessageHandler = (message: Message) => Promise<void>
 
-/** Convertit un message à enregistrer en ligne de la table, avec un identifiant unique. */
+/**
+ * Convertit un message à enregistrer en ligne de la table, avec un identifiant unique.
+ * La date de disponibilité d'un message différé est calculée par la base, comme celle
+ * d'un message ordinaire : maintenant, augmenté du délai.
+ */
 export const toOutboxRow = (message: NewMessage) => ({
   id: crypto.randomUUID(),
   topic: message.topic,
   payload: message.payload,
+  ...(message.delayMs
+    ? { availableAt: sql`now() + make_interval(secs => ${message.delayMs / 1000})` }
+    : {}),
 })
 
 export interface DispatcherOptions {

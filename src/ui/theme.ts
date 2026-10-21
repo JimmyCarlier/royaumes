@@ -27,6 +27,7 @@ export const theme: Record<string, Look> = {
   troll: { glyph: '👹', label: 'Troll' },
   door: { glyph: '🚪', label: 'Porte' },
   ranking: { glyph: '🏆', label: 'Classement' },
+  market: { glyph: '⚖️', label: 'Marché' },
 }
 
 /** Apparence d'une entité ; une apparence neutre si l'entité n'est pas décrite. */

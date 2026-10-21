@@ -108,3 +108,7 @@ button.link { background: none; color: var(--accent); padding: 0; }
 .ranking th, .ranking td { padding: 6px 8px; text-align: left; }
 .ranking tbody tr { border-top: 1px solid color-mix(in srgb, var(--muted) 25%, transparent); }
 .ranking tr[aria-current='true'] { font-weight: 600; color: var(--accent); }
+/* Marché */
+.offers { list-style: none; padding: 0; margin: 0; display: grid; gap: 8px; }
+.offers li { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
+input.amount { width: 5em; }
