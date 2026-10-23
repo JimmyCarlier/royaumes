@@ -45,6 +45,28 @@ const tablePolicy: ChannelPolicy = {
   },
 }
 
+// Règle de test d'une source partagée par plusieurs canaux : « room-<salle> » ne transmet que
+// les éléments de sa salle, grâce au nom du canal que la plateforme fournit à la source.
+const roomRows: { id: number; room: string }[] = []
+const roomPolicy: ChannelPolicy = {
+  prefix: 'room-',
+  canSubscribe: () => true,
+  source: {
+    read: async (after, channel) =>
+      roomRows
+        .filter((row) => row.id > after && `room-${row.room}` === channel)
+        .map((row) => ({
+          position: row.id,
+          stream: channel,
+          version: row.id,
+          type: 'RowAdded',
+          data: { room: row.room },
+          occurredAt: new Date(),
+        })),
+    start: async () => 0,
+  },
+}
+
 let store: EventStore
 let app: Hono<AppEnv>
 
@@ -61,7 +83,7 @@ beforeEach(async () => {
       '/stream',
       createRealtimeApi({
         store,
-        policies: [policy, secretPolicy, globalPolicy, tablePolicy],
+        policies: [policy, secretPolicy, globalPolicy, tablePolicy, roomPolicy],
         pollMs: 20,
         maxStreamMs: 150,
       }),
@@ -204,5 +226,16 @@ describe('Canal à source propre', () => {
     const { body } = await reading
     expect(eventIds(body)).toEqual(['2'])
     expect(body).toContain('"text":"pendant"')
+  })
+})
+
+describe('Source partagée par plusieurs canaux', () => {
+  it('fournit à la source le nom du canal, qui ne transmet que ses propres éléments', async () => {
+    roomRows.push({ id: 1, room: 'nord' }, { id: 2, room: 'sud' }, { id: 3, room: 'nord' })
+    const res = await app.request('/stream/room-nord/events', {
+      headers: { 'x-test-user': 'alice' },
+    })
+    const { events } = (await res.json()) as { events: { position: number }[] }
+    expect(events.map((event) => event.position)).toEqual([1, 3])
   })
 })

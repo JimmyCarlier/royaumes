@@ -6,12 +6,15 @@ import type { StoredEvent } from '../event-store/event-store'
  * afin que l'interface les reçoive comme ceux des autres canaux.
  */
 export interface ChannelSource {
-  /** Éléments postérieurs à une position, dans l'ordre croissant des positions. */
-  read(after: number): Promise<StoredEvent[]>
+  /**
+   * Éléments postérieurs à une position, dans l'ordre croissant des positions. Le nom du canal
+   * est fourni : une même source peut ainsi servir plusieurs canaux d'un même préfixe, par
+   * exemple un canal par guilde.
+   */
+  read(after: number, channel: string): Promise<StoredEvent[]>
   /** Position de départ d'un abonné qui n'en fournit aucune. */
-  start(): Promise<number>
+  start(channel: string): Promise<number>
 }
-
 /**
  * Règle d'accès aux canaux temps réel d'un module.
  * Chaque module déclare qui a le droit d'écouter ses canaux ; la plateforme, qui ne connaît

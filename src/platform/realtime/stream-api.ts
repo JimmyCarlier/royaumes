@@ -2,7 +2,7 @@ import { Hono } from 'hono'
 import { streamSSE } from 'hono/streaming'
 import type { EventStore, StoredEvent } from '../event-store/event-store'
 import type { AppEnv } from '../http/types'
-import { authorize, type ChannelPolicy, type ChannelSource } from './channel-policy'
+import { authorize, type ChannelPolicy } from './channel-policy'
 
 export interface RealtimeOptions {
   /** Journal d'événements : un canal correspond à un flux du journal, ou à tout le journal. */
@@ -38,7 +38,11 @@ function present(event: StoredEvent, policy: ChannelPolicy) {
 }
 
 /** Source des événements d'un canal, complétée par la manière de les identifier. */
-interface IdentifiedSource extends ChannelSource {
+interface IdentifiedSource {
+  /** Éléments du canal postérieurs à un identifiant, dans l'ordre. */
+  read(after: number): Promise<StoredEvent[]>
+  /** Identifiant de départ d'un abonné qui n'en fournit aucun. */
+  start(): Promise<number>
   /** Identifiant d'un événement, renvoyé par le navigateur dans Last-Event-ID. */
   idOf(event: StoredEvent): number
 }
@@ -52,7 +56,11 @@ interface IdentifiedSource extends ChannelSource {
 function sourceOf(store: EventStore, channel: string, policy: ChannelPolicy): IdentifiedSource {
   if (policy.source) {
     const source = policy.source
-    return { read: source.read, start: source.start, idOf: (event) => event.position }
+    return {
+      read: (after) => source.read(after, channel),
+      start: () => source.start(channel),
+      idOf: (event) => event.position,
+    }
   }
   const global = policy.global
   if (global) {
