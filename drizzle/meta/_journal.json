@@ -85,6 +85,20 @@
       "when": 1792575000286,
       "tag": "0011_limitation_partagee",
       "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1792740494624,
+      "tag": "0012_guildes",
+      "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1792741037392,
+      "tag": "0013_contributions_guildes",
+      "breakpoints": true
     }
   ]
 }

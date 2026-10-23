@@ -1,5 +1,6 @@
 import { Hono } from 'hono'
 import { createDungeonModule } from '@/modules/dungeon'
+import { createGuildModule } from '@/modules/guild'
 import { createMarketModule } from '@/modules/market'
 import { createRankingModule } from '@/modules/ranking'
 import { createRealmModule, createRemoteRealmModule } from '@/modules/realm'
@@ -86,6 +87,7 @@ export function createApi({
   })
 
   const tavern = createTavernModule({ db, clock })
+  const guild = createGuildModule({ db, projections, clock })
 
   // Droits des joueurs : chaque module fournit ses données personnelles. L'identité vient
   // en dernier : tant qu'elle n'est pas effacée, le joueur peut relancer un effacement interrompu.
@@ -97,6 +99,7 @@ export function createApi({
       market.personalData,
       ranking.personalData,
       tavern.personalData,
+      guild.personalData,
       createIdentityPersonalData(db),
     ],
     clock,
@@ -157,6 +160,8 @@ export function createApi({
         },
         // Durée de conservation des données de la Taverne.
         tavern: tavern.dailyTask,
+        // Demandes d'adhésion expirées des guildes.
+        guild: guild.dailyTask,
         // Relais du flux publié par le Village extrait, s'il y en a un.
         ...(remoteRealm ? { realm: remoteRealm.dailyTask } : {}),
       },
@@ -175,6 +180,7 @@ export function createApi({
   app.use('/ranking/*', requireUser(auth))
   app.use('/market/*', requireUser(auth))
   app.use('/tavern/*', requireUser(auth))
+  app.use('/guild/*', requireUser(auth))
   app.use('/account', requireUser(auth))
   app.use('/account/*', requireUser(auth))
   app.use('/stream/*', requireUser(auth))
@@ -188,6 +194,7 @@ export function createApi({
     .route('/ranking', ranking.api)
     .route('/market', market.api)
     .route('/tavern', tavern.api)
+    .route('/guild', guild.api)
     .route('/account', createPrivacyApi(privacy))
     .route('/stream', createRealtimeApi({ store, policies, ...realtime }))
 }
