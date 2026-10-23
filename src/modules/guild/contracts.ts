@@ -36,3 +36,21 @@ export interface MyGuild {
 export interface GuildRanking {
   entries: (GuildRankingEntry & { full: boolean })[]
 }
+
+/** Préfixe des canaux temps réel des guildes : « guild-<identifiant> ». */
+export const GUILD_CHANNEL_PREFIX = 'guild-'
+
+/** Nom du canal temps réel d'une guilde, réservé à ses membres. */
+export const guildChannel = (guildId: string) => `${GUILD_CHANNEL_PREFIX}${guildId}`
+
+/** Types des changements annoncés sur le canal d'une guilde. */
+export const GUILD_ACTIVITY = {
+  founded: 'GuildFounded',
+  requestReceived: 'RequestReceived',
+  requestCancelled: 'RequestCancelled',
+  requestRefused: 'RequestRefused',
+  memberJoined: 'MemberJoined',
+  memberLeft: 'MemberLeft',
+  memberKicked: 'MemberKicked',
+  leaderChanged: 'LeaderChanged',
+} as const

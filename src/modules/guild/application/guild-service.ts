@@ -1,4 +1,4 @@
-import type { GuildRanking, MyGuild } from '../contracts'
+import { GUILD_ACTIVITY, type GuildRanking, type MyGuild } from '../contracts'
 import {
   checkAccept,
   checkFound,
@@ -33,6 +33,9 @@ export interface GuildServiceOptions {
   newId?: () => string
 }
 
+/** Durée de conservation des changements annoncés sur les canaux : sept jours. */
+export const ACTIVITY_RETENTION_MS = 7 * 24 * 60 * 60_000
+
 /** Erreur métier correspondant à une contrainte d'unicité refusée par la base. */
 const CONFLICT_ERRORS: Record<GuildConflict['constraint'], GuildError> = {
   name: { code: 'NAME_TAKEN' },
@@ -54,8 +57,9 @@ function ensure(check: GuildError | null) {
 
 /**
  * Service applicatif des Guildes. Chaque commande se déroule dans une transaction :
- * lire la situation, la soumettre au domaine, puis écrire les changements. Une contrainte
- * d'unicité refusée par la base, en cas d'actions simultanées, est traduite en erreur métier.
+ * lire la situation, la soumettre au domaine, puis écrire les changements et l'activité
+ * annoncée sur le canal de la guilde. Une contrainte d'unicité refusée par la base, en cas
+ * d'actions simultanées, est traduite en erreur métier.
  */
 export function createGuildService(
   repo: GuildRepository,
@@ -109,14 +113,24 @@ export function createGuildService(
    * Départ d'un membre (règle 9) : le plus ancien membre devient chef si le chef part,
    * et la guilde est dissoute si le dernier membre part.
    */
-  async function depart(unit: GuildUnitOfWork, guildId: string, playerId: string) {
+  async function depart(
+    unit: GuildUnitOfWork,
+    guildId: string,
+    playerId: string,
+    type: string,
+    now: number,
+  ) {
     const plan = planDeparture(await unit.members(guildId), playerId)
     await unit.removeMember(playerId)
     if (plan.kind === 'dissolve') {
       await unit.deleteGuild(guildId)
       return
     }
-    if (plan.newLeaderId) await unit.setRole(plan.newLeaderId, 'leader')
+    await unit.recordActivity(guildId, type, now)
+    if (plan.newLeaderId) {
+      await unit.setRole(plan.newLeaderId, 'leader')
+      await unit.recordActivity(guildId, GUILD_ACTIVITY.leaderChanged, now)
+    }
   }
 
   // -------------------------------------------------------------------------
@@ -166,6 +180,11 @@ export function createGuildService(
     }
   }
 
+  /** Vrai si le joueur est membre de la guilde : règle d'accès au canal temps réel. */
+  async function isMember(guildId: string, playerId: string) {
+    return (await repo.situation(playerId)).guildId === guildId
+  }
+
   // -------------------------------------------------------------------------
   // Commandes
   // -------------------------------------------------------------------------
@@ -192,6 +211,7 @@ export function createGuildService(
       })
       // Le fondateur renonce à la demande qu'il avait éventuellement envoyée ailleurs.
       if (situation.request) await unit.deleteRequest(situation.request.id)
+      await unit.recordActivity(guildId, GUILD_ACTIVITY.founded, now)
     })
   }
 
@@ -210,6 +230,7 @@ export function createGuildService(
         playerName: player.name,
         sentAt: now,
       })
+      await unit.recordActivity(guildId, GUILD_ACTIVITY.requestReceived, now)
     })
   }
 
@@ -219,6 +240,7 @@ export function createGuildService(
       const request = pendingRequest(await unit.situation(playerId), now)
       if (!request) throw new Refusal({ code: 'NO_PENDING_REQUEST' })
       await unit.deleteRequest(request.id)
+      await unit.recordActivity(request.guildId, GUILD_ACTIVITY.requestCancelled, now)
     })
   }
 
@@ -235,32 +257,35 @@ export function createGuildService(
         role: 'member',
         joinedAt: now,
       })
+      await unit.recordActivity(request.guildId, GUILD_ACTIVITY.memberJoined, now)
     })
   }
 
   /** Refuse une demande, au nom du chef de la guilde visée (règle 7). */
   function refuse(leaderId: string, requestId: string): Promise<CommandResult> {
-    return command(leaderId, async (unit) => {
+    return command(leaderId, async (unit, now) => {
       const request = await lockedRequest(unit, requestId)
       ensure(checkLeader(await unit.members(request.guildId), leaderId))
       await unit.deleteRequest(request.id)
+      await unit.recordActivity(request.guildId, GUILD_ACTIVITY.requestRefused, now)
     })
   }
 
   /** Exclut un membre, au nom du chef (règle 7). */
   function kick(leaderId: string, targetId: string): Promise<CommandResult> {
-    return command(leaderId, async (unit) => {
+    return command(leaderId, async (unit, now) => {
       const guild = await lockedGuildOf(unit, leaderId)
       ensure(checkKick(await unit.members(guild.id), leaderId, targetId))
       await unit.removeMember(targetId)
+      await unit.recordActivity(guild.id, GUILD_ACTIVITY.memberKicked, now)
     })
   }
 
   /** Quitte la guilde du joueur (règle 9). */
   function leave(playerId: string): Promise<CommandResult> {
-    return command(playerId, async (unit) => {
+    return command(playerId, async (unit, now) => {
       const guild = await lockedGuildOf(unit, playerId)
-      await depart(unit, guild.id, playerId)
+      await depart(unit, guild.id, playerId, GUILD_ACTIVITY.memberLeft, now)
     })
   }
 
@@ -270,25 +295,31 @@ export function createGuildService(
    */
   async function removePlayer(playerId: string) {
     await repo.atomically(async (unit) => {
+      const now = clock()
       const situation = await unit.situation(playerId)
       if (situation.request) await unit.deleteRequest(situation.request.id)
       if (situation.guildId && (await unit.findGuild(situation.guildId, { lock: true }))) {
-        await depart(unit, situation.guildId, playerId)
+        await depart(unit, situation.guildId, playerId, GUILD_ACTIVITY.memberLeft, now)
       }
     })
   }
 
   /**
-   * Tâche quotidienne : supprime les demandes expirées. Une demande expirée n'est déjà plus
-   * présentée ni acceptable (règle 8) : la tâche ne fait que le ménage.
+   * Tâche quotidienne : supprime les demandes expirées et l'activité ancienne. Une demande
+   * expirée n'est déjà plus présentée ni acceptable (règle 8) : la tâche ne fait que le ménage.
    */
   async function purge() {
-    return { requests: await repo.removeRequestsSentBefore(clock() - REQUEST_TTL_MS) }
+    const now = clock()
+    return {
+      requests: await repo.removeRequestsSentBefore(now - REQUEST_TTL_MS),
+      activity: await repo.removeActivityBefore(now - ACTIVITY_RETENTION_MS),
+    }
   }
 
   return {
     mine,
     ranking,
+    isMember,
     found,
     requestToJoin,
     cancelRequest,

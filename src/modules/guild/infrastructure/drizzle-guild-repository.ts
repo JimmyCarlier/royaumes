@@ -1,4 +1,4 @@
-import { asc, eq, inArray, lt } from 'drizzle-orm'
+import { and, asc, eq, gt, inArray, lt, max } from 'drizzle-orm'
 import type { Db } from '@/platform/db/client'
 import type { DbTransaction } from '@/platform/projection/projection'
 import {
@@ -8,7 +8,7 @@ import {
   type GuildUnitOfWork,
 } from '../application/guild-repository'
 import type { JoinRequest, Member } from '../domain/guild'
-import { guilds, members, requests } from './schema'
+import { activity, guilds, members, requests } from './schema'
 
 /** Connexion ou transaction : les mêmes requêtes s'exécutent sur l'une comme sur l'autre. */
 type Executor = Db | DbTransaction
@@ -121,6 +121,10 @@ function unitOfWork(tx: DbTransaction): GuildUnitOfWork {
         .returning({ id: requests.id })
       return removed.length > 0
     },
+
+    async recordActivity(guildId, type, at) {
+      await tx.insert(activity).values({ guildId, type, at })
+    },
   }
 }
 
@@ -161,6 +165,28 @@ export function createDrizzleGuildRepository(db: Db): GuildRepository {
         .delete(requests)
         .where(lt(requests.sentAt, before))
         .returning({ id: requests.id })
+      return removed.length
+    },
+
+    activityAfter(guildId, afterId, limit) {
+      return db
+        .select()
+        .from(activity)
+        .where(and(eq(activity.guildId, guildId), gt(activity.id, afterId)))
+        .orderBy(asc(activity.id))
+        .limit(limit)
+    },
+
+    async lastActivityId() {
+      const [row] = await db.select({ value: max(activity.id) }).from(activity)
+      return Number(row?.value ?? 0)
+    },
+
+    async removeActivityBefore(before) {
+      const removed = await db
+        .delete(activity)
+        .where(lt(activity.at, before))
+        .returning({ id: activity.id })
       return removed.length
     },
   }

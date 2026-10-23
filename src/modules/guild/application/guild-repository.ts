@@ -7,6 +7,14 @@ export interface GuildRecord {
   createdAt: number
 }
 
+/** Changement annoncé sur le canal d'une guilde. */
+export interface ActivityRecord {
+  id: number
+  guildId: string
+  type: string
+  at: number
+}
+
 /**
  * Levée par le stockage lorsqu'une contrainte d'unicité refuse une écriture : une autre
  * action, simultanée, a été enregistrée la première. Le service la traduit en erreur métier.
@@ -47,6 +55,7 @@ export interface GuildUnitOfWork extends GuildReads {
   addRequest(request: JoinRequest): Promise<void>
   /** Supprime une demande ; renvoie faux si elle n'existait pas. */
   deleteRequest(requestId: string): Promise<boolean>
+  recordActivity(guildId: string, type: string, at: number): Promise<void>
 }
 
 /**
@@ -60,4 +69,10 @@ export interface GuildRepository extends GuildReads {
   allWithMembers(): Promise<{ guild: GuildRecord; members: Member[] }[]>
   /** Supprime les demandes envoyées avant l'instant before ; renvoie leur nombre. */
   removeRequestsSentBefore(before: number): Promise<number>
+  /** Changements d'une guilde postérieurs à un identifiant, dans l'ordre. */
+  activityAfter(guildId: string, afterId: number, limit: number): Promise<ActivityRecord[]>
+  /** Identifiant du dernier changement enregistré, toutes guildes confondues ; 0 s'il n'y en a aucun. */
+  lastActivityId(): Promise<number>
+  /** Supprime les changements antérieurs à l'instant before ; renvoie leur nombre. */
+  removeActivityBefore(before: number): Promise<number>
 }

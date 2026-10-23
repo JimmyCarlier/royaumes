@@ -283,11 +283,45 @@ describe('API du module Guildes - tâche quotidienne', () => {
       headers: { authorization: `Bearer ${TEST_CRON_SECRET}` },
     })
     const reports = await res.json()
-    expect(reports.guild).toEqual({ ok: true, result: { requests: 1 } })
+    expect(reports.guild).toEqual({ ok: true, result: { requests: 1, activity: 0 } })
     const rows = await api.db.execute(sql`SELECT player_id FROM guild.requests`)
     expect((rows as unknown as { rows: { player_id: string }[] }).rows).toEqual([
       { player_id: 'carol' },
     ])
+  })
+})
+
+describe('API du module Guildes - canal temps réel', () => {
+  it('annonce les changements de la guilde à ses membres, sans données', async () => {
+    const api = await createTestApi()
+    const guildId = await found(api)
+    await join(api, guildId, 'bob')
+
+    const res = await api.get(`/api/stream/guild-${guildId}/events?after=0`, 'bob')
+    expect(res.status).toBe(200)
+    const { events } = (await res.json()) as { events: { type: string; data: object }[] }
+    expect(events.map((event) => event.type)).toEqual([
+      'GuildFounded',
+      'RequestReceived',
+      'MemberJoined',
+    ])
+    expect(events.every((event) => Object.keys(event.data).length === 0)).toBe(true)
+  })
+
+  it("refuse le canal d'une guilde à un joueur qui n'en est pas membre (403)", async () => {
+    const api = await createTestApi()
+    const guildId = await found(api)
+    await ask(api, guildId, 'bob')
+    expect((await api.get(`/api/stream/guild-${guildId}/events`, 'bob')).status).toBe(403)
+  })
+
+  it("ne transmet pas les changements d'une autre guilde", async () => {
+    const api = await createTestApi()
+    const loups = await found(api, 'Les Loups')
+    await found(api, 'Les Ours', 'bob')
+    const res = await api.get(`/api/stream/guild-${loups}/events?after=0`)
+    const { events } = (await res.json()) as { events: unknown[] }
+    expect(events).toHaveLength(1)
   })
 })
 

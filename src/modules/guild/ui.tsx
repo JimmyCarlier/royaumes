@@ -1,12 +1,14 @@
 'use client'
 import { hc } from 'hono/client'
 import { type FormEvent, useCallback, useEffect, useState } from 'react'
+import { useChannel } from '@/platform/realtime/use-channel'
 import { Entity } from '@/ui/entity'
 import type { GuildApi } from './api'
 import {
   type GuildError,
   type GuildRanking,
   type GuildView,
+  guildChannel,
   type MyGuild,
   NAME_MAX,
   NAME_MIN,
@@ -15,6 +17,13 @@ import {
 
 /** Client HTTP typé, déduit de la sous-application Hono du module. */
 const client = hc<GuildApi>('/api/guild')
+
+/** Libellé affiché pour chaque état de la connexion temps réel. */
+const STATUS_LABELS = {
+  connecting: 'Connexion...',
+  open: 'Temps réel connecté',
+  reconnecting: 'Reconnexion...',
+} as const
 
 /** Message affiché au joueur pour chaque erreur. */
 function errorText(error: GuildError | { code: 'INVALID_INPUT' }): string {
@@ -73,6 +82,13 @@ export function GuildScreen() {
     refresh()
   }, [refresh])
 
+  // TEMPS RÉEL : le canal de la guilde annonce chaque changement, sans données ; la situation
+  // est alors relue. Sans guilde, aucun canal n'est ouvert.
+  const guildId = mine?.guild?.id ?? null
+  const status = useChannel(guildId ? guildChannel(guildId) : null, () => {
+    refresh()
+  })
+
   /** Traite la réponse d'une commande : la situation à jour, ou l'erreur. */
   async function handle(res: Response) {
     const body = (await res.json()) as MyGuild | { error: GuildError }
@@ -112,7 +128,14 @@ export function GuildScreen() {
 
   return (
     <>
-      {title}
+      <div className="row" style={{ justifyContent: 'space-between' }}>
+        {title}
+        {guildId && (
+          <span className="status" data-status={status}>
+            {STATUS_LABELS[status]}
+          </span>
+        )}
+      </div>
 
       {mine.guild ? (
         <MyGuildPanel

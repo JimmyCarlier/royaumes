@@ -99,6 +99,13 @@
       "when": 1792741037392,
       "tag": "0013_contributions_guildes",
       "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "7",
+      "when": 1792742935600,
+      "tag": "0014_activite_guildes",
+      "breakpoints": true
     }
   ]
 }

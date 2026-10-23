@@ -1,4 +1,4 @@
-import { bigint, index, integer, pgSchema, text } from 'drizzle-orm/pg-core'
+import { bigint, bigserial, index, integer, pgSchema, text } from 'drizzle-orm/pg-core'
 
 /**
  * Schéma PostgreSQL du module Guildes. Comme la Taverne, le module n'enregistre aucun
@@ -60,3 +60,19 @@ export const contributions = guild.table('contributions', {
   gold: integer('gold').notNull().default(0),
   upgrades: integer('upgrades').notNull().default(0),
 })
+
+/**
+ * Activité des guildes, annoncée sur le canal temps réel de chaque guilde : une ligne par
+ * changement (arrivée, départ, demande...). Elle ne contient aucune donnée personnelle :
+ * les abonnés relisent leur vue auprès de l'API. Supprimée après sept jours.
+ */
+export const activity = guild.table(
+  'activity',
+  {
+    id: bigserial('id', { mode: 'number' }).primaryKey(),
+    guildId: text('guild_id').notNull(),
+    type: text('type').notNull(),
+    at: bigint('at', { mode: 'number' }).notNull(),
+  },
+  (t) => [index('activity_guild_idx').on(t.guildId, t.id)],
+)
