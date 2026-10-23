@@ -17,3 +17,4 @@ un nouvel ADR est rédigé et l'ancien prend le statut « remplacé ».
 | [0009](0009-extraction-village.md) | Extraction du Village en service autonome, préparée mais non déployée | Accepté |
 | [0010](0010-guildes-tables-classiques.md) | Guildes conservées dans des tables classiques, protégées par des contraintes d'unicité | Accepté |
 | [0011](0011-guildes-lecture-langage-publie.md) | Score des guildes tenu par une projection du langage publié du Village et du Donjon | Accepté |
+| [0012](0012-canal-guilde-table-activite.md) | Un canal temps réel par guilde, alimenté par une table d'activité | Accepté |
