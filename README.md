@@ -81,6 +81,7 @@ Un module n'est accessible depuis l'extérieur que par ses entrées publiques : 
 | `ranking` | Classement des joueurs, construit à partir des événements du Village et du Donjon | `/api/ranking` |
 | `market` | Marché : échanges de ressources entre joueurs, par une saga orchestrée | `/api/market` |
 | `tavern` | Taverne : salon de discussion commun et présence des joueurs, sans Event Sourcing | `/api/tavern` |
+| `guild` | Guildes : fondation, demandes d'adhésion, chef et membres, classement collectif nourri par le Village et le Donjon, sans Event Sourcing | `/api/guild` |
 
 ## Temps réel
 
@@ -96,6 +97,11 @@ enregistrés après leur ouverture.
 
 Le canal `tavern` ne lit pas le journal, mais la table des messages de la Taverne : il
 transmet chaque nouveau message, avec son contenu, à tous les joueurs connectés.
+
+Chaque guilde a son canal, `guild-<identifiant>`, réservé à ses membres actuels. Il lit la
+table `guild.activity` et annonce, sans aucune donnée, chaque changement de la guilde :
+demande reçue, arrivée, départ ou exclusion d'un membre, nouveau chef. Chaque membre relit
+alors sa vue (ADR 0012).
 
 Les canaux du Donjon, du Classement et du Marché sont discrets : ils ne transmettent que la position,
 le type et la version des événements, et chaque navigateur relit sa propre vue, filtrée
@@ -141,9 +147,16 @@ page « Mes données » :
   tous les modules, et son nom est remplacé par une mention neutre dans le journal
   d'événements (ADR 0008). Chaque effacement est consigné dans `platform.erasures`.
 
+Les Guildes conservent l'appartenance d'un joueur à sa guilde (nom, rôle, date d'arrivée), sa
+demande d'adhésion et sa contribution au score. À la suppression d'un compte, le joueur quitte
+sa guilde : le plus ancien membre devient chef si c'était le chef, et la guilde est dissoute
+s'il en était le dernier membre. Sa demande est supprimée, et sa contribution, qui ne contient
+aucun nom, est conservée comme dans le Classement.
+
 Les messages de la Taverne sont conservés trente jours, et la présence d'un joueur deux
-minutes après son dernier signal. Ces durées sont appliquées à chaque lecture, et chaque jour
-par la tâche planifiée `/api/cron/daily`.
+minutes après son dernier signal. Une demande d'adhésion à une guilde expire après 72 heures.
+Ces durées sont appliquées à chaque lecture, et chaque jour par la tâche planifiée
+`/api/cron/daily`, qui supprime aussi l'activité des guildes vieille de plus de sept jours.
 
 ## Base de données
 
@@ -153,7 +166,8 @@ démarrage. Pour repartir d'une base vide, arrêtez le serveur et supprimez le r
 
 Les tests utilisent une base PGlite en mémoire, recréée pour chaque fichier de test.
 
-Le classement et la liste des expéditions ouvertes sont des modèles de lecture, tenus à jour
+Le classement, la liste des expéditions ouvertes et les contributions des joueurs aux guildes
+(`guild.contributions`) sont des modèles de lecture, tenus à jour
 par des projections à partir du journal d'événements (ADR 0006). Chaque projection est
 rattrapée à la consultation, et reconstruite automatiquement lorsque sa version change :
 une modification qui change le contenu de ses tables doit donc augmenter sa version.
@@ -188,9 +202,11 @@ sans la première ; sans la seconde, la route des tâches quotidiennes reste fer
 - [Revue de sécurité de l'authentification](docs/qualite/revue-securite-authentification.md)
 - [Revue de sécurité du Donjon](docs/qualite/revue-securite-donjon.md)
 - [Revue de sécurité du Marché](docs/qualite/revue-securite-marche.md)
+- [Revue de sécurité des Guildes](docs/qualite/revue-securite-guild.md)
 - [Registre des traitements](docs/rgpd/registre-traitements.md)
 - [Revue de conformité au RGPD](docs/rgpd/revue-conformite.md)
 - [Bilan technique](docs/bilan-technique.md)
+- [Évaluation : fiche de cadrage](docs/evaluation/fiche-cadrage.md) et [document de rendu](docs/evaluation/rendu.md)
 
 ## Conventions
 
@@ -224,3 +240,10 @@ pseudonymisée : plus aucune table ne le relie à une personne (ADR 0008).
 Le service Village extrait n'est pas prêt pour la production : ses migrations, la pagination
 de son flux publié et la distribution de sa boîte d'envoi restent à traiter. Ces limites, et
 les autres limites connues, sont recensées dans le registre de la dette technique.
+
+Le classement des guildes est calculé à chaque consultation, pour toutes les guildes et tous
+leurs membres, sans pagination (DT-011). Le score d'une guilde est celui de ses membres
+actuels : un joueur qui la rejoint y apporte toute sa contribution passée. Un membre exclu
+peut recevoir, pendant au plus 240 secondes, le type des changements de son ancienne guilde,
+sans aucune donnée (DT-012). Un joueur dont la demande est acceptée ou refusée n'en est pas
+prévenu en temps réel : il le voit à sa consultation suivante (ADR 0012).
