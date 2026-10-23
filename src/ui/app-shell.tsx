@@ -12,6 +12,7 @@ export const NAV = [
   { href: '/ranking', kind: 'ranking', label: 'Classement' },
   { href: '/market', kind: 'market', label: 'Marché' },
   { href: '/tavern', kind: 'tavern', label: 'Taverne' },
+  { href: '/guild', kind: 'guild', label: 'Guildes' },
 ]
 
 /** Cadre de l'espace de jeu : navigation, nom du joueur, accès à ses données et déconnexion. */
