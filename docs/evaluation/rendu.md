@@ -23,7 +23,7 @@ vérifient (« Règle 1 - longueur du nom »...).
 | E7 | `src/modules/guild/personal-data.ts`, déclaré dans `create-api.ts` avant l'identité | « exporte l'appartenance, la demande et la contribution du joueur », « efface le joueur : la guilde passe à un autre membre, et son nom disparaît » ; fonction d'aptitude « déclare les données personnelles de chaque module qui conserve des données » |
 | E8 | Correspondance règle → test et route → test ci-dessous | 61 tests ajoutés au total (voir les indicateurs) |
 | E9 | `.dependency-cruiser.cjs` et `src/bootstrap/architecture.test.ts` non modifiés | `pnpm lint:archi` : aucune violation ; `architecture.test.ts` : 2 tests réussis |
-| E10 | Migrations appliquées par `pnpm vercel-build` (`db:migrate`) | Parcours sur le déploiement de production : [à réaliser avant de poser l'étiquette] |
+| E10 | Migrations appliquées par `pnpm vercel-build` (`db:migrate`) | Parcours sur le déploiement de production, selon la liste de contrôle de la partie 6.2 : fondation d'une guilde, demande et acceptation à deux joueurs avec réception de la demande en temps réel, score après une amélioration du Village ; fondation d'un village, expédition, échange au Marché, message dans la Taverne ; export puis suppression d'un compte de test membre d'une guilde |
 
 ### Correspondance entre les règles de la fiche et les tests
 
@@ -95,4 +95,6 @@ vérifient (« Règle 1 - longueur du nom »...).
   puis relus par l'auteur.
 - Vérifications : `pnpm verify` après chaque étape ; `pnpm test:coverage` à `td11-fin` et au
   rendu ; parcours à deux joueurs dans le navigateur (fondation, demande reçue en temps réel par
-  le chef, acceptation, départ) ; [parcours sur le déploiement de production, à compléter].
+  le chef, acceptation, départ) ; parcours sur le déploiement de production, selon la liste de
+  contrôle de la partie 6.2 (module Guildes à deux joueurs, modules existants, export et
+  suppression d'un compte de test).
