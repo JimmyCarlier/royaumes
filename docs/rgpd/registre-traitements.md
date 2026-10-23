@@ -25,7 +25,18 @@ supprime une donnée personnelle, dans le même commit que cette évolution.
 | T5 | Présence dans la Taverne | Indiquer les joueurs présents | Identifiant, nom, date du dernier signal | Joueurs | Exécution du contrat | Deux minutes après le dernier signal | `tavern.presence` |
 | T6 | Registre des effacements | Démontrer la réalisation des effacements | Date de l'effacement, nombre d'événements réécrits ; aucune donnée sur le joueur | Aucune personne identifiable | Obligation légale (responsabilité, article 5) | Illimitée | `platform.erasures` |
 | T7 | Journaux techniques | Diagnostiquer les erreurs, assurer la sécurité | Adresse IP, adresses des requêtes, messages d'erreur | Joueurs, visiteurs | Intérêt légitime (sécurité, maintenance) | Durée fixée par l'hébergeur : à vérifier | Vercel |
+| T8 | Guildes | Permettre aux joueurs de former des guildes et de les classer | Identifiant, nom du joueur, rôle et date d'arrivée dans sa guilde ; demande d'adhésion (guilde visée, nom, date) ; contribution (or rapporté, nombre d'améliorations, sans nom) | Joueurs | Exécution du contrat | Appartenance : jusqu'au départ de la guilde ou à la suppression du compte. Demande : jusqu'à la décision du chef ; expirée après 72 heures, puis supprimée par la tâche quotidienne. Contribution : jusqu'à la suppression du compte, puis conservée sans nom, comme le Classement | `guild.members`, `guild.requests`, `guild.contributions` |
 
+## Mesures de sécurité propres aux Guildes (T8)
+
+- Routes réservées aux joueurs connectés ; un joueur n'agit qu'en son propre nom
+  (revue `docs/qualite/revue-securite-guild.md`, exigences G1 et G2).
+- Les noms des demandeurs ne sont présentés qu'au chef de la guilde visée (G8).
+- Le canal temps réel d'une guilde est réservé à ses membres et ne transmet aucune donnée
+  personnelle ; la table `guild.activity` n'en contient aucune (G9).
+- À l'effacement d'un compte, le joueur quitte sa guilde et sa demande est supprimée : son nom
+  disparaît des tables du module (G11).
+  
 ## Droits des personnes
 
 | Droit | Mise en œuvre |
