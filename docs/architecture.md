@@ -12,7 +12,7 @@ dans le même commit que la modification qu'ils décrivent.
 ```mermaid
 flowchart TB
   joueur["Joueur<br/>[Personne]<br/>Joue depuis un navigateur,<br/>sur ordinateur ou sur téléphone"]
-  royaumes["Royaumes<br/>[Système logiciel]<br/>Jeu web multijoueur : village, donjon,<br/>classement, marché et taverne"]
+  royaumes["Royaumes<br/>[Système logiciel]<br/>Jeu web multijoueur : village, donjon,<br/>classement, marché, taverne et guildes"]
   joueur -->|"Gère son village, joue avec les autres joueurs,<br/>reçoit les changements en direct (HTTPS)"| royaumes
 ```
 
@@ -28,7 +28,7 @@ flowchart TB
   subgraph royaumes["Système Royaumes"]
     web["Interface web<br/>[Conteneur : React, dans le navigateur]<br/>Pages du jeu et page de connexion"]
     serveur["Application serveur<br/>[Conteneur : Next.js et Hono, fonctions Vercel, Francfort]<br/>Rendu des pages, API JSON,<br/>authentification, flux temps réel"]
-    base[("Base de données<br/>[Conteneur : PostgreSQL, Neon, Francfort]<br/>Schéma platform : journal, points de reprise,<br/>boîte d'envoi, registre des effacements<br/>Schéma identity : comptes et sessions<br/>Schémas ranking, dungeon et market :<br/>modèles de lecture<br/>Schéma tavern : messages et présence")]
+    base[("Base de données<br/>[Conteneur : PostgreSQL, Neon, Francfort]<br/>Schéma platform : journal, points de reprise,<br/>boîte d'envoi, registre des effacements<br/>Schéma identity : comptes et sessions<br/>Schémas ranking, dungeon et market :<br/>modèles de lecture<br/>Schéma tavern : messages et présence<br/>Schéma guild : guildes, membres, demandes,<br/>activité ; contributions (modèle de lecture)")]
   end
   joueur -->|"Utilise"| web
   web -->|"Pages, appels de l'API avec le cookie de session<br/>(HTTPS, JSON)"| serveur
@@ -43,7 +43,9 @@ flowchart TB
 | Base de données | PostgreSQL (Neon en production, PGlite en local et en test) | Conservation du journal d'événements, des comptes et des sessions ; modèles de lecture des modules |
 
 Le journal d'événements est la seule source de vérité des modules Village, Donjon et Marché.
-La Taverne n'enregistre pas d'événements : ses tables sont sa propre source de vérité (ADR 0008).
+La Taverne et les Guildes n'enregistrent pas d'événements : leurs tables sont leur propre source
+de vérité (ADR 0008, ADR 0010). La table `guild.contributions` est en revanche un modèle de
+lecture, dérivé du journal par la projection des Guildes (ADR 0011).
 Les tables des schémas `ranking`, `dungeon` et `market` sont des modèles de lecture, dérivés du journal par des projections : elles peuvent
 être vidées puis reconstruites à tout moment, sans perte d'information.
 
@@ -67,6 +69,7 @@ flowchart TB
     ranking["ranking<br/>Classement : projection,<br/>lecture, API, canal global"]
     market["market<br/>Marché : orchestrateur de la saga,<br/>projection des offres, API, canal global"]
     tavern["tavern<br/>Taverne : messages et présence<br/>en tables, API, canal à source propre"]
+    guild["guild<br/>Guildes : adhésions en tables,<br/>projection des contributions, API,<br/>canal par guilde à source propre"]
   end
   subgraph platform["src/platform"]
     auth["auth<br/>Port AuthPort,<br/>adaptateur Better Auth"]
@@ -83,13 +86,14 @@ flowchart TB
   route --> server
   pages --> server
   server --> createapi
-  createapi --> system & realm & dungeon & ranking & market & tavern & auth & http & realtime & projection & outbox & privacy & cron
+  createapi --> system & realm & dungeon & ranking & market & tavern & guild & auth & http & realtime & projection & outbox & privacy & cron
   realm --> store & realtime & http & outbox
   market --> store & projection & realtime & http & outbox
   dungeon --> store & projection & realtime & http
   ranking --> projection & realtime & http
   tavern --> realtime & http & db
-  realm & dungeon & market & ranking & tavern --> privacy
+  guild --> projection & realtime & http & db
+  realm & dungeon & market & ranking & tavern & guild --> privacy
   privacy --> store
   auth --> privacy
   realtime --> store & http
@@ -117,6 +121,15 @@ La seule dépendance directe porte sur les contrats du Village (`REALM_TOPICS`, 
 qui décrivent ces messages. Chaque transaction ne modifie que les données d'un seul module,
 et la boîte d'envoi (ADR 0007).
 
+Le module `guild` communique avec le Village et le Donjon par la seule lecture de leur langage
+publié, comme le Classement : sa projection `guild-contributions` lit `BuildingUpgraded` dans
+les flux `village-<joueur>` et `GameEnded` dans les flux `dungeon-<expédition>`, et tient la
+contribution de chaque joueur. Il n'importe de ces modules que les préfixes de leurs flux,
+exposés par leurs contrats, n'écrit jamais dans le journal et n'envoie aucun message (ADR 0011).
+Le score d'une guilde est calculé à la lecture, à partir des contributions de ses membres
+actuels. Son canal temps réel, `guild-<identifiant>`, lit la table `guild.activity` et n'est
+ouvert qu'aux membres de la guilde (ADR 0012).
+
 Chaque module déclare ses données personnelles à la brique `privacy`, au moyen d'un fichier
 `personal-data.ts` : il les exporte, désigne les champs personnels de ses événements, et les
 efface de ses tables. La brique `privacy` contient la seule fonction du projet qui modifie un
@@ -140,6 +153,39 @@ de la plateforme ou d'un module, et chaque module qui conserve des données déc
 données personnelles.
 
 Seule la racine de composition connaît à la fois la plateforme et l'ensemble des modules.
+
+## Parcours d'une opération traversant plusieurs modules
+
+Le diagramme suivant présente le parcours d'une amélioration de bâtiment, depuis le Village
+jusqu'au score de la guilde du joueur. L'amélioration est enregistrée par le Village ; le
+module Guildes l'applique plus tard, au rattrapage de sa projection, lors de la consultation
+suivante du classement.
+
+```mermaid
+sequenceDiagram
+  autonumber
+  actor Carol as Carol (membre des Loups)
+  actor Alice as Alice
+  participant API as Application serveur (Hono)
+  participant Realm as Module realm
+  participant Store as Journal (platform.events)
+  participant Guild as Module guild
+  participant Proj as Moteur des projections
+  participant Tables as Schéma guild
+  Carol->>API: POST /api/realm/village/upgrade
+  API->>Realm: execute(UpgradeBuilding)
+  Realm->>Store: append(village-carol, BuildingUpgraded)
+  Store-->>Realm: événement à la position n
+  Realm-->>Carol: 200, vue du village
+  Alice->>API: GET /api/guild/guilds
+  API->>Guild: ranking()
+  Guild->>Tables: guildes et membres
+  Guild->>Proj: catchUp(guild-contributions)
+  Proj->>Store: événements postérieurs au point de reprise
+  Proj->>Tables: contributions.upgrades + 1 pour carol, point de reprise n (une transaction)
+  Guild->>Tables: contributions des membres
+  Guild-->>Alice: 200, classement : Les Loups, score + 10
+```
 
 ## Extraction du Village
 
@@ -185,8 +231,9 @@ Chaque envoi sur la branche `main` déclenche un déploiement. Le code n'est pub
 l'ensemble des contrôles a réussi, et les migrations ne sont appliquées qu'après ces contrôles.
 
 La tâche planifiée, déclarée dans `vercel.json`, exécute chaque jour les tâches quotidiennes :
-la distribution des messages restés en attente dans la boîte d'envoi, et l'application des
-durées de conservation de la Taverne. Elle ne s'exécute que sur le déploiement de production.
+la distribution des messages restés en attente dans la boîte d'envoi, l'application des
+durées de conservation de la Taverne, et la suppression des demandes d'adhésion expirées et de
+l'activité ancienne des Guildes. Elle ne s'exécute que sur le déploiement de production.
 
 Le service Village extrait n'est pas déployé : en production, le Village s'exécute dans
 les fonctions Vercel, comme les autres modules (ADR 0009).
