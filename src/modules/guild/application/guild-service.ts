@@ -161,6 +161,9 @@ export function createGuildService(
     }
   }
 
+  // DETTE TECHNIQUE (docs/qualite/dette-technique.md, DT-011) : le classement est calculé en
+  // mémoire à chaque consultation, pour toutes les guildes, sans pagination.
+
   /** Classement de toutes les guildes, calculé à partir des contributions de leurs membres. */
   async function ranking(): Promise<GuildRanking> {
     const all = await repo.allWithMembers()
